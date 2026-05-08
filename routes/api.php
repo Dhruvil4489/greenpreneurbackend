@@ -78,6 +78,7 @@ use App\Http\Controllers\Api\V1\MembershipPlanController;
 use App\Http\Controllers\Api\V1\P2PMeetingRequestController;
 use App\Http\Controllers\Api\V1\PaymentController;
 use App\Http\Controllers\Api\V1\PeerBlockController;
+use App\Http\Controllers\Api\V1\PeerMonthlyImpactScriptController;
 use App\Http\Controllers\Api\V1\PostReportController;
 use App\Http\Controllers\Api\V1\PostReportReasonsController;
 use App\Http\Controllers\Api\V1\Profile\MyPostsController;
@@ -440,6 +441,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/impacts/my', [ImpactController::class, 'my']);
         Route::get('/impacts/timeline', [ImpactController::class, 'timeline']);
         Route::get('/life-impact/history', [LifeImpactHistoryController::class, 'index']);
+        Route::get('/peer-monthly-impact-script', PeerMonthlyImpactScriptController::class);
 
         // Leaderboards
         Route::get('/leaderboards/coins', [LeaderboardController::class, 'coins']);

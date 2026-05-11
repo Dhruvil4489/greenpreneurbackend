@@ -238,7 +238,10 @@ class UsersController extends Controller
             ->get();
         $membershipStatuses = $this->membershipStatuses();
         $adminRoleIds = $roles->pluck('id')->all();
-        $assignedAdminRoles = $user->roles->whereIn('id', $adminRoleIds)->values();
+        $adminUserForRoles = $this->findAdminUserForPeer($user);
+        $assignedAdminRoles = $adminUserForRoles
+            ? $adminUserForRoles->roles()->whereIn('roles.id', $adminRoleIds)->get()
+            : collect();
         $circles = Circle::query()
             ->orderBy('name')
             ->get(['id', 'name', 'zoho_addon_code', 'zoho_addon_name']);
@@ -485,7 +488,10 @@ class UsersController extends Controller
             $updatable['membership_ends_at'] = null;
             $updatable['membership_expiry'] = null;
         }
-        $currentAdminRoleIds = $user->roles()->whereIn('roles.id', $adminRoleIds)->pluck('roles.id');
+        $adminUserForRoles = $this->findAdminUserForPeer($user);
+        $currentAdminRoleIds = $adminUserForRoles
+            ? $adminUserForRoles->roles()->whereIn('roles.id', $adminRoleIds)->pluck('roles.id')
+            : collect();
 
         if ($request->filled('role_ids') && $currentAdminRoleIds->isNotEmpty()) {
             return back()
@@ -499,215 +505,296 @@ class UsersController extends Controller
         $this->applyCircleAddonFields($validated, $selectedCircleId);
         $ledgerHasRemarkColumn = Schema::hasColumn('coins_ledger', 'remark');
 
-        DB::transaction(function () use ($user, $updatable, $validated, $request, $activeCircleMemberStatus, $selectedCircleId, $coinsBalanceChanged, $originalCoinsBalance, $coinsRemark, $ledgerHasRemarkColumn, $lifeImpactedCountChanged, $originalLifeImpactedCount, $lifeImpactRemark) {
-            $user->fill($updatable);
-            $user->status = $validated['status'];
-            $user->active_circle_id = $selectedCircleId;
+        try {
+            DB::transaction(function () use ($user, $updatable, $validated, $request, $activeCircleMemberStatus, $selectedCircleId, $coinsBalanceChanged, $originalCoinsBalance, $coinsRemark, $ledgerHasRemarkColumn, $lifeImpactedCountChanged, $originalLifeImpactedCount, $lifeImpactRemark, $adminRoleIds) {
+                $user->fill($updatable);
+                $user->status = $validated['status'];
+                $user->active_circle_id = $selectedCircleId;
 
-            if ($request->filled('profile_photo_file_id')) {
-                $user->profile_photo_file_id = $request->input('profile_photo_file_id');
-            }
+                if ($request->filled('profile_photo_file_id')) {
+                    $user->profile_photo_file_id = $request->input('profile_photo_file_id');
+                }
 
-            if ($request->filled('cover_photo_file_id')) {
-                $user->cover_photo_file_id = $request->input('cover_photo_file_id');
-            }
+                if ($request->filled('cover_photo_file_id')) {
+                    $user->cover_photo_file_id = $request->input('cover_photo_file_id');
+                }
 
-            $user->save();
+                $user->save();
 
-            if ($coinsBalanceChanged) {
-                $newCoinsBalance = (int) ($user->coins_balance ?? 0);
-                $delta = $newCoinsBalance - $originalCoinsBalance;
+                if ($coinsBalanceChanged) {
+                    $newCoinsBalance = (int) ($user->coins_balance ?? 0);
+                    $delta = $newCoinsBalance - $originalCoinsBalance;
 
-                if ($delta !== 0) {
-                    $reference = $coinsRemark !== ''
-                        ? "Admin adjustment | {$coinsRemark}"
-                        : 'Admin adjustment';
+                    if ($delta !== 0) {
+                        $reference = $coinsRemark !== ''
+                            ? "Admin adjustment | {$coinsRemark}"
+                            : 'Admin adjustment';
 
-                    $ledgerPayload = [
-                        'transaction_id' => (string) Str::uuid(),
-                        'user_id' => $user->id,
-                        'amount' => $delta,
-                        'balance_after' => $newCoinsBalance,
-                        'activity_id' => null,
-                        'reference' => $reference,
-                        'created_by' => null,
-                        'created_at' => now(),
+                        $ledgerPayload = [
+                            'transaction_id' => (string) Str::uuid(),
+                            'user_id' => $user->id,
+                            'amount' => $delta,
+                            'balance_after' => $newCoinsBalance,
+                            'activity_id' => null,
+                            'reference' => $reference,
+                            'created_by' => null,
+                            'created_at' => now(),
+                        ];
+
+                        if ($ledgerHasRemarkColumn) {
+                            $ledgerPayload['remark'] = $coinsRemark !== '' ? $coinsRemark : null;
+                        }
+
+                        DB::table('coins_ledger')->insert($ledgerPayload);
+                    }
+                }
+
+                if ($lifeImpactedCountChanged) {
+                    $newLifeImpactedCount = (int) ($user->life_impacted_count ?? 0);
+                    $difference = $newLifeImpactedCount - $originalLifeImpactedCount;
+
+                    if ($difference !== 0) {
+                        $admin = Auth::guard('admin')->user();
+
+                        DB::table('life_impact_histories')->insert([
+                            'id' => (string) Str::uuid(),
+                            'user_id' => $user->id,
+                            'triggered_by_user_id' => null,
+                            'activity_type' => 'admin_adjustment',
+                            'activity_id' => null,
+                            'impact_value' => $difference,
+                            'title' => 'Life impact manually updated by admin',
+                            'description' => $lifeImpactRemark,
+                            'meta' => json_encode([
+                                'old_value' => $originalLifeImpactedCount,
+                                'new_value' => $newLifeImpactedCount,
+                                'difference' => $difference,
+                                'source' => 'admin_panel',
+                                'admin_user_id' => $admin?->id,
+                                'admin_email' => $admin?->email ?? $admin?->name,
+                            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                            'created_at' => now(),
+                            'updated_at' => now(),
+                            'life_impacted' => $newLifeImpactedCount,
+                            'counted_in_total' => true,
+                            'impact_category' => 'admin_adjustment',
+                            'action_key' => 'admin_adjustment',
+                            'action_label' => 'Admin Adjustment',
+                            'remarks' => $lifeImpactRemark,
+                        ]);
+                    }
+                }
+
+                if ($selectedCircleId) {
+                    $membershipAttributes = [
+                        'role' => 'member',
+                        'status' => $activeCircleMemberStatus,
                     ];
 
-                    if ($ledgerHasRemarkColumn) {
-                        $ledgerPayload['remark'] = $coinsRemark !== '' ? $coinsRemark : null;
+                    if (Schema::hasColumn('circle_members', 'joined_at')) {
+                        $membershipAttributes['joined_at'] = $validated['circle_joined_at'] ?? now();
                     }
 
-                    DB::table('coins_ledger')->insert($ledgerPayload);
-                }
-            }
-
-            if ($lifeImpactedCountChanged) {
-                $newLifeImpactedCount = (int) ($user->life_impacted_count ?? 0);
-                $difference = $newLifeImpactedCount - $originalLifeImpactedCount;
-
-                if ($difference !== 0) {
-                    $admin = Auth::guard('admin')->user();
-
-                    DB::table('life_impact_histories')->insert([
-                        'id' => (string) Str::uuid(),
+                    $memberRecord = CircleMember::query()->withTrashed()->firstOrNew([
                         'user_id' => $user->id,
-                        'triggered_by_user_id' => null,
-                        'activity_type' => 'admin_adjustment',
-                        'activity_id' => null,
-                        'impact_value' => $difference,
-                        'title' => 'Life impact manually updated by admin',
-                        'description' => $lifeImpactRemark,
-                        'meta' => json_encode([
-                            'old_value' => $originalLifeImpactedCount,
-                            'new_value' => $newLifeImpactedCount,
-                            'difference' => $difference,
-                            'source' => 'admin_panel',
-                            'admin_user_id' => $admin?->id,
-                            'admin_email' => $admin?->email ?? $admin?->name,
-                        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                        'life_impacted' => $newLifeImpactedCount,
-                        'counted_in_total' => true,
-                        'impact_category' => 'admin_adjustment',
-                        'action_key' => 'admin_adjustment',
-                        'action_label' => 'Admin Adjustment',
-                        'remarks' => $lifeImpactRemark,
+                        'circle_id' => $selectedCircleId,
                     ]);
-                }
-            }
+                    if ($memberRecord->trashed()) {
+                        $memberRecord->deleted_at = null;
+                    }
+                    $memberRecord->fill(array_merge($membershipAttributes, ['left_at' => null]));
+                    $memberRecord->save();
+                    $this->upsertCircleMemberCategorySelection($memberRecord, $user->id, $validated);
 
-            if ($selectedCircleId) {
-                $membershipAttributes = [
-                    'role' => 'member',
-                    'status' => $activeCircleMemberStatus,
-                ];
+                    $circle = Circle::query()->whereKey($selectedCircleId)->firstOrFail();
 
-                if (Schema::hasColumn('circle_members', 'joined_at')) {
-                    $membershipAttributes['joined_at'] = $validated['circle_joined_at'] ?? now();
-                }
+                    $city = trim((string) ($validated['circle_city'] ?? ''));
+                    $country = trim((string) ($validated['circle_country'] ?? ''));
+                    $mode = trim((string) ($validated['circle_meeting_mode'] ?? ''));
+                    $frequency = trim((string) ($validated['circle_meeting_frequency'] ?? ''));
 
-                $memberRecord = CircleMember::query()->withTrashed()->firstOrNew([
-                    'user_id' => $user->id,
-                    'circle_id' => $selectedCircleId,
-                ]);
-                if ($memberRecord->trashed()) {
-                    $memberRecord->deleted_at = null;
-                }
-                $memberRecord->fill(array_merge($membershipAttributes, ['left_at' => null]));
-                $memberRecord->save();
-                $this->upsertCircleMemberCategorySelection($memberRecord, $user->id, $validated);
+                    if ($city !== '') {
+                        if (Schema::hasColumn('circles', 'city_id')) {
+                            $cityRecord = City::query()
+                                ->whereRaw('LOWER(name) = ?', [mb_strtolower($city)])
+                                ->first();
 
-                $circle = Circle::query()->whereKey($selectedCircleId)->firstOrFail();
+                            if (! $cityRecord) {
+                                $cityRecord = City::create([
+                                    'name' => $city,
+                                ]);
+                            }
 
-                $city = trim((string) ($validated['circle_city'] ?? ''));
-                $country = trim((string) ($validated['circle_country'] ?? ''));
-                $mode = trim((string) ($validated['circle_meeting_mode'] ?? ''));
-                $frequency = trim((string) ($validated['circle_meeting_frequency'] ?? ''));
+                            $circle->city_id = $cityRecord->id;
+                        } elseif (Schema::hasColumn('circles', 'city')) {
+                            $currentCity = $circle->getAttribute('city');
+                            $isJsonCity = false;
 
-                if ($city !== '') {
-                    if (Schema::hasColumn('circles', 'city_id')) {
-                        $cityRecord = City::query()
-                            ->whereRaw('LOWER(name) = ?', [mb_strtolower($city)])
-                            ->first();
+                            if (is_array($currentCity)) {
+                                $isJsonCity = true;
+                            } elseif (is_string($currentCity) && str_starts_with(trim($currentCity), '{')) {
+                                $isJsonCity = true;
+                            }
 
-                        if (! $cityRecord) {
-                            $cityRecord = City::create([
-                                'name' => $city,
-                            ]);
-                        }
+                            if ($isJsonCity) {
+                                $existing = is_array($currentCity)
+                                    ? $currentCity
+                                    : (json_decode((string) $currentCity, true) ?: []);
 
-                        $circle->city_id = $cityRecord->id;
-                    } elseif (Schema::hasColumn('circles', 'city')) {
-                        $currentCity = $circle->getAttribute('city');
-                        $isJsonCity = false;
-
-                        if (is_array($currentCity)) {
-                            $isJsonCity = true;
-                        } elseif (is_string($currentCity) && str_starts_with(trim($currentCity), '{')) {
-                            $isJsonCity = true;
-                        }
-
-                        if ($isJsonCity) {
-                            $existing = is_array($currentCity)
-                                ? $currentCity
-                                : (json_decode((string) $currentCity, true) ?: []);
-
-                            $circle->city = Circle::normalizeCityPayload($city, $existing);
-                        } else {
-                            $circle->city = $city;
+                                $circle->city = Circle::normalizeCityPayload($city, $existing);
+                            } else {
+                                $circle->city = $city;
+                            }
                         }
                     }
-                }
 
-                if (Schema::hasColumn('circles', 'country') && $country !== '') {
-                    $circle->country = $country;
-                }
+                    if (Schema::hasColumn('circles', 'country') && $country !== '') {
+                        $circle->country = $country;
+                    }
 
-                if (Schema::hasColumn('circles', 'meeting_mode') && $mode !== '') {
-                    $circle->meeting_mode = $mode;
-                }
+                    if (Schema::hasColumn('circles', 'meeting_mode') && $mode !== '') {
+                        $circle->meeting_mode = $mode;
+                    }
 
-                if (Schema::hasColumn('circles', 'meeting_frequency') && $frequency !== '') {
-                    $circle->meeting_frequency = $frequency;
-                }
+                    if (Schema::hasColumn('circles', 'meeting_frequency') && $frequency !== '') {
+                        $circle->meeting_frequency = $frequency;
+                    }
 
-                $circle->save();
+                    $circle->save();
 
-                \Log::info('Circle settings save', [
-                    'circle_id' => $selectedCircleId,
-                    'circle_city' => $city,
-                    'circle_country' => $country,
-                    'circle_meeting_mode' => $mode,
-                    'circle_meeting_frequency' => $frequency,
-                ]);
-            }
-
-            $additionalCircleId = $validated['additional_circle_id'] ?? null;
-            if ($additionalCircleId) {
-                $additionalMembership = [
-                    'role' => 'member',
-                    'status' => $activeCircleMemberStatus,
-                ];
-
-                if (Schema::hasColumn('circle_members', 'joined_at')) {
-                    $additionalMembership['joined_at'] = $validated['circle_joined_at'] ?? now();
-                }
-
-                $additionalMemberRecord = CircleMember::query()->withTrashed()->firstOrNew([
-                    'user_id' => $user->id,
-                    'circle_id' => $additionalCircleId,
-                ]);
-                if ($additionalMemberRecord->trashed()) {
-                    $additionalMemberRecord->deleted_at = null;
-                }
-                $additionalMemberRecord->fill(array_merge($additionalMembership, ['left_at' => null]));
-                $additionalMemberRecord->save();
-                $this->upsertCircleMemberCategorySelection($additionalMemberRecord, $user->id, $validated);
-            }
-
-            if ($request->filled('role_ids')) {
-                $adminUser = AdminUser::find($user->id);
-
-                if (! $adminUser) {
-                    $adminUser = AdminUser::create([
-                        'id' => $user->id,
-                        'email' => $user->email,
-                        'name' => $user->display_name ?? $user->first_name,
+                    \Log::info('Circle settings save', [
+                        'circle_id' => $selectedCircleId,
+                        'circle_city' => $city,
+                        'circle_country' => $country,
+                        'circle_meeting_mode' => $mode,
+                        'circle_meeting_frequency' => $frequency,
                     ]);
                 }
 
-                $adminUser->roles()->sync($validated['role_ids']);
-            }
-        });
+                $additionalCircleId = $validated['additional_circle_id'] ?? null;
+                if ($additionalCircleId) {
+                    $additionalMembership = [
+                        'role' => 'member',
+                        'status' => $activeCircleMemberStatus,
+                    ];
+
+                    if (Schema::hasColumn('circle_members', 'joined_at')) {
+                        $additionalMembership['joined_at'] = $validated['circle_joined_at'] ?? now();
+                    }
+
+                    $additionalMemberRecord = CircleMember::query()->withTrashed()->firstOrNew([
+                        'user_id' => $user->id,
+                        'circle_id' => $additionalCircleId,
+                    ]);
+                    if ($additionalMemberRecord->trashed()) {
+                        $additionalMemberRecord->deleted_at = null;
+                    }
+                    $additionalMemberRecord->fill(array_merge($additionalMembership, ['left_at' => null]));
+                    $additionalMemberRecord->save();
+                    $this->upsertCircleMemberCategorySelection($additionalMemberRecord, $user->id, $validated);
+                }
+
+                if ($request->filled('role_ids')) {
+                    $adminUser = $this->resolveAdminUserForRoleAssignment($user);
+                    $selectedRoleIds = collect($validated['role_ids'] ?? [])
+                        ->intersect($adminRoleIds)
+                        ->unique()
+                        ->values()
+                        ->all();
+
+                    $adminUser->roles()->detach(array_values(array_diff($adminRoleIds, $selectedRoleIds)));
+                    $adminUser->roles()->syncWithoutDetaching($selectedRoleIds);
+                }
+            });
+        } catch (ValidationException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            Log::error('admin.users.update_failed', [
+                'user_id' => $user->id,
+                'exception' => $exception,
+            ]);
+
+            return redirect()
+                ->route('admin.users.edit', $user->id)
+                ->withInput()
+                ->withErrors(['roles' => 'Unable to update user roles right now. Please try again or contact support.']);
+        }
 
         $statusMessage = $request->has('add_circle_membership')
             ? 'Circle membership added successfully.'
             : 'User updated successfully.';
 
-        return redirect()->to('/admin/users/' . $user->id . '/edit')
-            ->with('status', $statusMessage);
+        return redirect()
+            ->route('admin.users.edit', $user->id)
+            ->with('success', $statusMessage);
+    }
+
+    private function findAdminUserForPeer(User $user): ?AdminUser
+    {
+        $email = $this->normalizedAdminEmail($user);
+
+        if ($email !== '') {
+            $adminUser = AdminUser::query()
+                ->whereRaw('LOWER(email) = ?', [$email])
+                ->first();
+
+            if ($adminUser) {
+                return $adminUser;
+            }
+        }
+
+        return AdminUser::query()->find($user->id);
+    }
+
+    private function resolveAdminUserForRoleAssignment(User $user): AdminUser
+    {
+        $email = $this->normalizedAdminEmail($user);
+
+        if ($email === '') {
+            throw ValidationException::withMessages([
+                'email' => 'Email is required before assigning an admin role.',
+            ]);
+        }
+
+        $name = $this->adminDisplayName($user);
+        $adminUser = $this->findAdminUserForPeer($user);
+
+        if ($adminUser) {
+            $adminUser->forceFill([
+                'name' => $name,
+            ])->save();
+
+            if (! $adminUser->wasChanged()) {
+                $adminUser->touch();
+            }
+
+            return $adminUser;
+        }
+
+        $adminUserId = (string) ($user->id ?: Str::uuid());
+        if (AdminUser::query()->whereKey($adminUserId)->exists()) {
+            $adminUserId = (string) Str::uuid();
+        }
+
+        return AdminUser::query()->firstOrCreate(
+            ['email' => $email],
+            [
+                'id' => $adminUserId,
+                'name' => $name,
+            ],
+        );
+    }
+
+    private function normalizedAdminEmail(User $user): string
+    {
+        return strtolower(trim((string) $user->email));
+    }
+
+    private function adminDisplayName(User $user): string
+    {
+        $name = trim((string) ($user->display_name ?: trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''))));
+
+        return $name !== '' ? $name : $this->normalizedAdminEmail($user);
     }
 
     public function removeCircleMembership(Request $request, string $userId, string $circleMemberId): RedirectResponse
@@ -743,7 +830,7 @@ class UsersController extends Controller
     public function removeRole(Request $request, string $userId): RedirectResponse
     {
         $user = User::query()->findOrFail($userId);
-        $adminUser = AdminUser::find($user->id);
+        $adminUser = $this->findAdminUserForPeer($user);
 
         if (! $adminUser) {
             return back()->withErrors(['roles' => 'Admin user record not found for this user.']);
@@ -756,12 +843,6 @@ class UsersController extends Controller
             ->all();
 
         $adminUser->roles()->detach($adminRoleIds);
-
-        $remainingRoles = $adminUser->roles()->count();
-
-        if ($remainingRoles === 0) {
-            $adminUser->delete();
-        }
 
         return back()->with('success', 'Role removed successfully.');
     }

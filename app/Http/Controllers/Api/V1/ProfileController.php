@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Profile\UpdateProfileRequest;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class ProfileController extends Controller
 {
@@ -77,14 +79,50 @@ class ProfileController extends Controller
         }
 
         $user->forceFill($data);
-        $user->save();
+        $user->saveOrFail();
+        $this->persistProfilePayloadToUsersTable($user, $data);
         $user->refresh();
+
+        Log::info('profile_update_saved', [
+            'user_id' => $user->id,
+            'payload_keys' => array_keys($data),
+            'secondary_mobile_db' => $user->secondary_mobile,
+            'linkedin_profile_db' => $user->linkedin_profile,
+        ]);
 
         return response()->json([
             'success' => true,
             'message' => 'Profile updated successfully',
             'data' => $user,
         ]);
+    }
+
+    private function persistProfilePayloadToUsersTable($user, array $payload): void
+    {
+        if ($payload === []) {
+            return;
+        }
+
+        $attributes = $user->getAttributes();
+        $databasePayload = [];
+
+        foreach (array_keys($payload) as $column) {
+            if (array_key_exists($column, $attributes)) {
+                $databasePayload[$column] = $attributes[$column];
+            }
+        }
+
+        if ($databasePayload === []) {
+            return;
+        }
+
+        if ($user->usesTimestamps() && $user->getUpdatedAtColumn()) {
+            $databasePayload[$user->getUpdatedAtColumn()] = $user->freshTimestampString();
+        }
+
+        DB::table($user->getTable())
+            ->where($user->getKeyName(), $user->getKey())
+            ->update($databasePayload);
     }
 
     /**

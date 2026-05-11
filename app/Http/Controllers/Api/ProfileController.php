@@ -10,6 +10,8 @@ use App\Http\Resources\UserLinkResource;
 use App\Http\Resources\UserProfileResource;
 use App\Services\Users\PublicProfileSlugService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class ProfileController extends BaseApiController
 {
@@ -89,11 +91,48 @@ class ProfileController extends BaseApiController
             $user->public_profile_slug = $publicProfileSlugService->generateUniqueForUser($user);
         }
 
-        $user->save();
+        $user->saveOrFail();
+        $this->persistProfilePayloadToUsersTable($user, $data);
         $user->refresh();
+
+        Log::info('profile_update_saved', [
+            'user_id' => $user->id,
+            'payload_keys' => array_keys($data),
+            'secondary_mobile_db' => $user->secondary_mobile,
+            'linkedin_profile_db' => $user->linkedin_profile,
+        ]);
+
         $user->load(['profilePhotoFile', 'coverPhotoFile', 'userLinks']);
 
         return $this->success(new UserProfileResource($user), 'Profile updated successfully');
+    }
+
+    private function persistProfilePayloadToUsersTable($user, array $payload): void
+    {
+        if ($payload === []) {
+            return;
+        }
+
+        $attributes = $user->getAttributes();
+        $databasePayload = [];
+
+        foreach (array_keys($payload) as $column) {
+            if (array_key_exists($column, $attributes)) {
+                $databasePayload[$column] = $attributes[$column];
+            }
+        }
+
+        if ($databasePayload === []) {
+            return;
+        }
+
+        if ($user->usesTimestamps() && $user->getUpdatedAtColumn()) {
+            $databasePayload[$user->getUpdatedAtColumn()] = $user->freshTimestampString();
+        }
+
+        DB::table($user->getTable())
+            ->where($user->getKeyName(), $user->getKey())
+            ->update($databasePayload);
     }
 
     /**

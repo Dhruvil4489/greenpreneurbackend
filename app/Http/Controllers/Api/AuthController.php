@@ -39,6 +39,11 @@ class AuthController extends BaseApiController
     {
         $data = $request->validated();
         $data = $this->resolveRegisterCategoryPath($data);
+
+        if ($businessCategoryError = $this->validateActiveRegisterBusinessCategory($data)) {
+            return $businessCategoryError;
+        }
+
         $incomingReferralCode = $data['referral_code']
             ?? $request->input('referral_code')
             ?? $request->input('referralCode');
@@ -484,6 +489,50 @@ class AuthController extends BaseApiController
     }
 
 
+    private function validateActiveRegisterBusinessCategory(array $data): ?JsonResponse
+    {
+        $businessCategoryId = $data['business_category_id'] ?? null;
+
+        if (blank($businessCategoryId)) {
+            return null;
+        }
+
+        $query = DB::table($this->level4CategoriesTable())
+            ->where('id', $businessCategoryId);
+
+        if (Schema::hasColumn($this->level4CategoriesTable(), 'is_active')) {
+            $query->where('is_active', true);
+        }
+
+        if ($query->first()) {
+            return null;
+        }
+
+        $message = 'The selected business category must be a valid active Level 4 category.';
+
+        return response()->json([
+            'status' => false,
+            'message' => $message,
+            'errors' => [
+                'business_category_id' => [$message],
+            ],
+            'data' => null,
+            'meta' => null,
+        ], 422);
+    }
+
+    private function level4CategoriesTable(): string
+    {
+        foreach (['level4_categories', 'circle_category_level4'] as $table) {
+            if (Schema::hasTable($table)) {
+                return $table;
+            }
+        }
+
+        return 'level4_categories';
+    }
+
+
     private function resolveRegisterReferrerUserId(array $data, ?array $referralPreview): ?string
     {
         $referrerUserId = (string) ($referralPreview['referrer_user_id'] ?? '');
@@ -523,19 +572,26 @@ class AuthController extends BaseApiController
 
     private function buildRegisterUserPayload(User $user): array
     {
-        $user->loadMissing(['businessCategory:id,name', 'introducedBy:id,first_name,last_name,display_name']);
+        $user->loadMissing(['mainBusinessCategory:id,name', 'businessCategory:id,name', 'introducedBy:id,first_name,last_name,display_name']);
 
         if (Schema::hasColumn('users', 'referred_by_user_id') && method_exists($user, 'referredByUser')) {
             $user->loadMissing(['referredByUser:id,first_name,last_name,display_name']);
         }
 
         $payload = $user->toArray();
+        $mainBusinessCategory = $user->mainBusinessCategory;
         $businessCategory = $user->businessCategory;
         $referrer = $user->referredByUser ?? $user->introducedBy;
 
+        $payload['main_business_category'] = $mainBusinessCategory
+            ? [
+                'id' => (int) $mainBusinessCategory->id,
+                'name' => (string) $mainBusinessCategory->name,
+            ]
+            : null;
         $payload['business_category'] = $businessCategory
             ? [
-                'id' => (string) $businessCategory->id,
+                'id' => (int) $businessCategory->id,
                 'name' => (string) $businessCategory->name,
             ]
             : null;
@@ -624,6 +680,10 @@ class AuthController extends BaseApiController
 
         if (Schema::hasColumn('users', 'city_of_residence')) {
             $user->city_of_residence = $data['city_of_residence'] ?? null;
+        }
+
+        if (Schema::hasColumn('users', 'main_business_category_id')) {
+            $user->main_business_category_id = $data['main_business_category_id'] ?? null;
         }
 
         if (Schema::hasColumn('users', 'business_category_id')) {

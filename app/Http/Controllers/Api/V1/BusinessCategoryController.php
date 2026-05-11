@@ -26,7 +26,7 @@ class BusinessCategoryController extends BaseApiController
         $items = $this->orderCategoryQuery($query, 'circle_categories')
             ->get()
             ->map(fn ($category): array => [
-                'id' => (string) $category->id,
+                'id' => (int) $category->id,
                 'name' => (string) $category->name,
             ])
             ->values();
@@ -67,10 +67,10 @@ class BusinessCategoryController extends BaseApiController
         return $this->orderCategoryQuery($query, 'circle_categories')
             ->get()
             ->map(fn ($category): array => [
-                'id' => (string) $category->id,
+                'id' => (int) $category->id,
                 'name' => (string) $category->name,
                 'level' => (int) $category->level,
-                'parent_id' => $category->parent_id !== null ? (string) $category->parent_id : null,
+                'parent_id' => $category->parent_id !== null ? (int) $category->parent_id : null,
             ])
             ->values();
     }
@@ -82,15 +82,17 @@ class BusinessCategoryController extends BaseApiController
             return $this->legacyLevel2Children($parentId);
         }
 
-        if (Schema::hasTable('circle_category_level2')) {
-            $level2 = DB::table('circle_category_level2')->where('id', $parentId)->first();
+        $level2Table = $this->level2CategoriesTable();
+        if (Schema::hasTable($level2Table)) {
+            $level2 = DB::table($level2Table)->where('id', $parentId)->first();
             if ($level2) {
                 return $this->legacyLevel3Children($parentId);
             }
         }
 
-        if (Schema::hasTable('circle_category_level3')) {
-            $level3 = DB::table('circle_category_level3')->where('id', $parentId)->first();
+        $level3Table = $this->level3CategoriesTable();
+        if (Schema::hasTable($level3Table)) {
+            $level3 = DB::table($level3Table)->where('id', $parentId)->first();
             if ($level3) {
                 return $this->legacyLevel4Children($parentId);
             }
@@ -101,77 +103,107 @@ class BusinessCategoryController extends BaseApiController
 
     private function legacyLevel2Children(string $parentId)
     {
-        if (! Schema::hasTable('circle_category_level2')) {
+        $table = $this->level2CategoriesTable();
+        if (! Schema::hasTable($table)) {
             return collect();
         }
 
-        $query = DB::table('circle_category_level2')
+        $query = DB::table($table)
             ->select(['id', 'name', 'circle_category_id'])
             ->where('circle_category_id', $parentId);
 
-        if (Schema::hasColumn('circle_category_level2', 'is_active')) {
+        if (Schema::hasColumn($table, 'is_active')) {
             $query->where('is_active', true);
         }
 
-        return $this->orderCategoryQuery($query, 'circle_category_level2')
+        return $this->orderCategoryQuery($query, $table)
             ->get()
             ->map(fn ($category): array => [
-                'id' => (string) $category->id,
+                'id' => (int) $category->id,
                 'name' => (string) $category->name,
                 'level' => 2,
-                'parent_id' => (string) $category->circle_category_id,
+                'parent_id' => (int) $category->circle_category_id,
             ])
             ->values();
     }
 
     private function legacyLevel3Children(string $parentId)
     {
-        if (! Schema::hasTable('circle_category_level3')) {
+        $table = $this->level3CategoriesTable();
+        if (! Schema::hasTable($table)) {
             return collect();
         }
 
-        $query = DB::table('circle_category_level3')
+        $query = DB::table($table)
             ->select(['id', 'name', 'level2_id'])
             ->where('level2_id', $parentId);
 
-        if (Schema::hasColumn('circle_category_level3', 'is_active')) {
+        if (Schema::hasColumn($table, 'is_active')) {
             $query->where('is_active', true);
         }
 
-        return $this->orderCategoryQuery($query, 'circle_category_level3')
+        return $this->orderCategoryQuery($query, $table)
             ->get()
             ->map(fn ($category): array => [
-                'id' => (string) $category->id,
+                'id' => (int) $category->id,
                 'name' => (string) $category->name,
                 'level' => 3,
-                'parent_id' => (string) $category->level2_id,
+                'parent_id' => (int) $category->level2_id,
             ])
             ->values();
     }
 
     private function legacyLevel4Children(string $parentId)
     {
-        if (! Schema::hasTable('circle_category_level4')) {
+        $table = $this->level4CategoriesTable();
+        if (! Schema::hasTable($table)) {
             return collect();
         }
 
-        $query = DB::table('circle_category_level4')
+        $query = DB::table($table)
             ->select(['id', 'name', 'level3_id'])
             ->where('level3_id', $parentId);
 
-        if (Schema::hasColumn('circle_category_level4', 'is_active')) {
+        if (Schema::hasColumn($table, 'is_active')) {
             $query->where('is_active', true);
         }
 
-        return $this->orderCategoryQuery($query, 'circle_category_level4')
+        return $this->orderCategoryQuery($query, $table)
             ->get()
             ->map(fn ($category): array => [
-                'id' => (string) $category->id,
+                'id' => (int) $category->id,
                 'name' => (string) $category->name,
                 'level' => 4,
-                'parent_id' => (string) $category->level3_id,
+                'parent_id' => (int) $category->level3_id,
             ])
             ->values();
+    }
+
+
+    private function level2CategoriesTable(): string
+    {
+        return $this->firstExistingTable(['level2_categories', 'circle_category_level2']);
+    }
+
+    private function level3CategoriesTable(): string
+    {
+        return $this->firstExistingTable(['level3_categories', 'circle_category_level3']);
+    }
+
+    private function level4CategoriesTable(): string
+    {
+        return $this->firstExistingTable(['level4_categories', 'circle_category_level4']);
+    }
+
+    private function firstExistingTable(array $tables): string
+    {
+        foreach ($tables as $table) {
+            if (Schema::hasTable($table)) {
+                return $table;
+            }
+        }
+
+        return $tables[0];
     }
 
     private function orderCategoryQuery($query, string $table)

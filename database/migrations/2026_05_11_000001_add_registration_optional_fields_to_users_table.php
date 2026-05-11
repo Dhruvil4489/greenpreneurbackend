@@ -13,9 +13,15 @@ return new class extends Migration
             return;
         }
 
-        Schema::table('users', function (Blueprint $table): void {
+        $level4Table = $this->level4CategoriesTable();
+
+        Schema::table('users', function (Blueprint $table) use ($level4Table): void {
+            if (! Schema::hasColumn('users', 'main_business_category_id')) {
+                $this->addNullableReferenceColumn($table, 'main_business_category_id', 'circle_categories');
+            }
+
             if (! Schema::hasColumn('users', 'business_category_id')) {
-                $this->addNullableReferenceColumn($table, 'business_category_id', 'circle_categories');
+                $this->addNullableReferenceColumn($table, 'business_category_id', $level4Table);
             }
 
             if (! Schema::hasColumn('users', 'city_of_residence')) {
@@ -27,7 +33,8 @@ return new class extends Migration
             }
         });
 
-        $this->addForeignKeyIfSafe('users', 'business_category_id', 'circle_categories', 'id');
+        $this->addForeignKeyIfSafe('users', 'main_business_category_id', 'circle_categories', 'id');
+        $this->addForeignKeyIfSafe('users', 'business_category_id', $level4Table, 'id');
         $this->addForeignKeyIfSafe('users', 'referred_by_user_id', 'users', 'id');
     }
 
@@ -38,13 +45,13 @@ return new class extends Migration
         }
 
         Schema::table('users', function (Blueprint $table): void {
-            foreach (['business_category_id', 'referred_by_user_id'] as $column) {
+            foreach (['main_business_category_id', 'business_category_id', 'referred_by_user_id'] as $column) {
                 if (Schema::hasColumn('users', $column)) {
                     $this->dropForeignIfExists('users', $column);
                 }
             }
 
-            foreach (['business_category_id', 'city_of_residence', 'referred_by_user_id'] as $column) {
+            foreach (['main_business_category_id', 'business_category_id', 'city_of_residence', 'referred_by_user_id'] as $column) {
                 if (Schema::hasColumn('users', $column)) {
                     $table->dropColumn($column);
                 }
@@ -52,9 +59,26 @@ return new class extends Migration
         });
     }
 
+
+    private function level4CategoriesTable(): string
+    {
+        foreach (['level4_categories', 'circle_category_level4'] as $table) {
+            if (Schema::hasTable($table)) {
+                return $table;
+            }
+        }
+
+        return 'level4_categories';
+    }
+
     private function addNullableReferenceColumn(Blueprint $table, string $column, string $referencedTable): void
     {
         $referencedType = $this->columnDataType($referencedTable, 'id');
+
+        if ($referencedType === null) {
+            $table->unsignedInteger($column)->nullable();
+            return;
+        }
 
         if ($referencedType === 'uuid') {
             $table->uuid($column)->nullable();

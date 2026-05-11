@@ -3,9 +3,8 @@
 namespace App\Http\Requests\Auth;
 
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Validation\Validator;
+use Illuminate\Validation\Rule;
 
 class RegisterRequest extends FormRequest
 {
@@ -17,11 +16,15 @@ class RegisterRequest extends FormRequest
             $incomingReferralCode = $this->input('referralCode');
         }
 
-        $level1 = $this->input('level_1_category_id', $this->input('level1_category_id'));
-        $level2 = $this->input('level_2_category_id', $this->input('level2_category_id'));
-        $level3 = $this->input('level_3_category_id', $this->input('level3_category_id'));
-        $level4 = $this->input('level_4_category_id', $this->input('level4_category_id', $this->input('category_id')));
-        $businessCategoryId = $this->input('business_category_id');
+        $level1 = $this->nullableInput('level_1_category_id', $this->input('level1_category_id'));
+        $level2 = $this->nullableInput('level_2_category_id', $this->input('level2_category_id'));
+        $level3 = $this->nullableInput('level_3_category_id', $this->input('level3_category_id'));
+        $level4 = $this->nullableInput('level_4_category_id', $this->input('level4_category_id', $this->input('category_id')));
+
+        $mainBusinessCategoryId = $this->nullableInput('main_business_category_id', $level1);
+        $businessCategoryId = $this->filled('business_category_id')
+            ? $this->nullableInput('business_category_id')
+            : $level4;
 
         $payload = [
             'level_1_category_id' => $level1,
@@ -33,7 +36,10 @@ class RegisterRequest extends FormRequest
             'level2_category_id' => $level2,
             'level3_category_id' => $level3,
             'level4_category_id' => $level4,
+            'main_business_category_id' => $mainBusinessCategoryId,
             'business_category_id' => $businessCategoryId,
+            'referred_by_user_id' => $this->nullableInput('referred_by_user_id'),
+            'city_id' => $this->nullableInput('city_id'),
         ];
 
         if (! blank($incomingReferralCode)) {
@@ -41,6 +47,13 @@ class RegisterRequest extends FormRequest
         }
 
         $this->merge($payload);
+    }
+
+    private function nullableInput(string $key, mixed $default = null): mixed
+    {
+        $value = $this->input($key, $default);
+
+        return $value === '' ? null : $value;
     }
 
     public function authorize(): bool
@@ -68,13 +81,14 @@ class RegisterRequest extends FormRequest
             'designation'  => ['nullable', 'string', 'max:255'],
             'city_id' => ['nullable', 'uuid', 'exists:cities,id'],
             'city_of_residence' => ['nullable', 'string', 'max:150'],
-            'business_category_id' => ['nullable', 'exists:circle_categories,id'],
+            'main_business_category_id' => ['nullable', 'integer', 'exists:circle_categories,id'],
+            'business_category_id' => ['nullable', 'integer', Rule::exists($this->level4CategoriesTable(), 'id')],
             'referred_by_user_id' => ['nullable', 'uuid', 'exists:users,id'],
             'circle_id' => ['nullable', 'uuid', 'exists:circles,id'],
             'level_1_category_id' => ['nullable', 'integer', 'exists:circle_categories,id'],
-            'level_2_category_id' => ['nullable', 'integer', 'exists:circle_category_level2,id'],
-            'level_3_category_id' => ['nullable', 'integer', 'exists:circle_category_level3,id'],
-            'level_4_category_id' => ['nullable', 'integer', 'exists:circle_category_level4,id'],
+            'level_2_category_id' => ['nullable', 'integer', Rule::exists($this->level2CategoriesTable(), 'id')],
+            'level_3_category_id' => ['nullable', 'integer', Rule::exists($this->level3CategoriesTable(), 'id')],
+            'level_4_category_id' => ['nullable', 'integer', Rule::exists($this->level4CategoriesTable(), 'id')],
             'referral_code' => [
                 'nullable',
                 'string',
@@ -85,30 +99,31 @@ class RegisterRequest extends FormRequest
     }
 
 
-    public function withValidator(Validator $validator): void
+
+    private function level2CategoriesTable(): string
     {
-        $validator->after(function (Validator $validator): void {
-            $businessCategoryId = $this->input('business_category_id');
+        return $this->firstExistingCategoryTable(['level2_categories', 'circle_category_level2']);
+    }
 
-            if (blank($businessCategoryId) || $validator->errors()->has('business_category_id')) {
-                return;
+    private function level3CategoriesTable(): string
+    {
+        return $this->firstExistingCategoryTable(['level3_categories', 'circle_category_level3']);
+    }
+
+    private function level4CategoriesTable(): string
+    {
+        return $this->firstExistingCategoryTable(['level4_categories', 'circle_category_level4']);
+    }
+
+    private function firstExistingCategoryTable(array $tables): string
+    {
+        foreach ($tables as $table) {
+            if (Schema::hasTable($table)) {
+                return $table;
             }
+        }
 
-            if (! Schema::hasTable('circle_categories') || ! Schema::hasColumn('circle_categories', 'level')) {
-                return;
-            }
-
-            $level = DB::table('circle_categories')
-                ->where('id', $businessCategoryId)
-                ->value('level');
-
-            if ($level !== null && (int) $level !== 4) {
-                $validator->errors()->add(
-                    'business_category_id',
-                    'The selected business category must be a Level 4 category.'
-                );
-            }
-        });
+        return $tables[0];
     }
 
     public function messages(): array

@@ -75,6 +75,7 @@ class User extends Authenticatable
         'influencer_stars',
         'target_regions',
         'target_business_categories',
+        'main_business_category_id',
         'business_category_id',
         'city_of_residence',
         'referred_by_user_id',
@@ -284,9 +285,14 @@ class User extends Authenticatable
         return $this->belongsTo(User::class, 'referred_by_user_id');
     }
 
+    public function mainBusinessCategory(): BelongsTo
+    {
+        return $this->belongsTo(CircleCategory::class, 'main_business_category_id');
+    }
+
     public function businessCategory(): BelongsTo
     {
-        return $this->belongsTo(CircleCategory::class, 'business_category_id');
+        return $this->belongsTo(Level4Category::class, 'business_category_id');
     }
 
     public function foundedCircles(): HasMany

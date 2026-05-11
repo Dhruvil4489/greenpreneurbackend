@@ -21,7 +21,8 @@ Accept: application/json
   "password_confirmation": "password123",
   "city_id": "optional_existing_city_uuid",
   "city_of_residence": "Ahmedabad",
-  "business_category_id": "level_4_category_uuid",
+  "main_business_category_id": 1,
+  "business_category_id": 1,
   "referred_by_user_id": "optional_referrer_user_uuid",
   "referral_code": "JAYKA1234"
 }
@@ -31,8 +32,12 @@ Expected response includes these fields inside `data.user` when available:
 
 ```json
 {
+  "main_business_category": {
+    "id": 1,
+    "name": "Manufacturing & Engineering Circles"
+  },
   "business_category": {
-    "id": "uuid",
+    "id": 1,
     "name": "Steel Manufacturing"
   },
   "city_of_residence": "Ahmedabad",
@@ -56,7 +61,7 @@ Accept: application/json
   "message": "Main business categories fetched successfully.",
   "data": [
     {
-      "id": "uuid",
+      "id": 1,
       "name": "Manufacturing & Engineering Circles"
     }
   ]
@@ -78,10 +83,10 @@ Accept: application/json
   "message": "Business sub categories fetched successfully.",
   "data": [
     {
-      "id": "uuid",
+      "id": 1,
       "name": "Steel Manufacturing",
       "level": 4,
-      "parent_id": "uuid"
+      "parent_id": 1
     }
   ]
 }

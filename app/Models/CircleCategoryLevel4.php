@@ -5,12 +5,20 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Schema;
 
 class CircleCategoryLevel4 extends Model
 {
     use HasFactory;
 
     protected $table = 'circle_category_level4';
+
+    public function getTable()
+    {
+        return Schema::hasTable('level4_categories')
+            ? 'level4_categories'
+            : $this->table;
+    }
 
     protected $guarded = [];
 

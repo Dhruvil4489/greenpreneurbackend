@@ -125,8 +125,8 @@ class MemberController extends BaseApiController
         $user = User::with([
             'city',
             'activeCircle.cityRef',
-            'mainBusinessCategory:id,name',
-            'businessCategory:id,name',
+            'mainBusinessCategory',
+            'businessCategory',
         ])->find($id);
 
         if (! $user) {
@@ -146,8 +146,8 @@ class MemberController extends BaseApiController
         $user = User::with([
                 'city',
                 'activeCircle.cityRef',
-                'mainBusinessCategory:id,name',
-                'businessCategory:id,name',
+                'mainBusinessCategory',
+                'businessCategory',
             ])
             ->where('public_profile_slug', $slug)
             ->first();

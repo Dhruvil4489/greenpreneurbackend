@@ -34,6 +34,7 @@ use App\Http\Controllers\Admin\AdController;
 use App\Http\Controllers\Admin\EmailLogController;
 use App\Http\Controllers\Admin\ImpactsController;
 use App\Http\Controllers\Admin\LeadSubmissionsController;
+use App\Http\Controllers\Admin\ReferralReportController;
 use App\Http\Controllers\Admin\AdminExecutionController;
 
 Route::get('/', function () {
@@ -67,6 +68,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/activities/requirements/export', [ActivitiesRequirementsController::class, 'export'])->name('activities.requirements.export');
         Route::get('/activities/referrals', [ActivitiesReferralsController::class, 'index'])->name('activities.referrals.index');
         Route::get('/activities/referrals/export', [ActivitiesReferralsController::class, 'export'])->name('activities.referrals.export');
+        Route::get('/referral-report', [ReferralReportController::class, 'index'])->name('referral-report.index');
+        Route::get('/referral-report/export', [ReferralReportController::class, 'export'])->name('referral-report.export');
+        Route::get('/referral-report/{referrer_user_id}', [ReferralReportController::class, 'show'])->name('referral-report.show');
         Route::get('/activities/p2p-meetings', [ActivitiesP2PMeetingsController::class, 'index'])->name('activities.p2p-meetings.index');
         Route::get('/activities/p2p-meetings/export', [ActivitiesP2PMeetingsController::class, 'export'])->name('activities.p2p-meetings.export');
         Route::get('/activities/business-deals', [ActivitiesBusinessDealsController::class, 'index'])->name('activities.business-deals.index');

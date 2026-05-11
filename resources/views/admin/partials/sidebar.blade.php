@@ -63,6 +63,9 @@
     ] : [];
 
     $activityActive = request()->routeIs('admin.activities.*') || request()->routeIs('admin.collaborations.*');
+    $referralReportItem = ($isSuper || $isCircleScoped)
+        ? ['icon' => 'bi-person-lines-fill', 'label' => 'Referral Report', 'route' => 'admin.referral-report.index', 'active_routes' => ['admin.referral-report.*']]
+        : null;
     $activityExpanded = $activityActive || ! $isGlobalAdmin;
 
     $postsMenu = $isGlobalAdmin ? [
@@ -134,6 +137,14 @@
                             @endforeach
                         </ul>
                     </div>
+                </li>
+            @endif
+
+            @if ($referralReportItem)
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs(...$referralReportItem['active_routes']) ? 'active' : '' }}" href="{{ route($referralReportItem['route']) }}">
+                        <i class="bi {{ $referralReportItem['icon'] }} me-2"></i>{{ $referralReportItem['label'] }}
+                    </a>
                 </li>
             @endif
 

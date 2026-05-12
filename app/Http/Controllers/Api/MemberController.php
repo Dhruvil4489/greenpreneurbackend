@@ -178,10 +178,8 @@ class MemberController extends BaseApiController
             ->where(function ($nested): void {
                 $nested->whereNull('paid_ends_at')->orWhere('paid_ends_at', '>=', now());
 
-                foreach (['expires_at', 'membership_ends_at', 'ends_at', 'subscription_ends_at'] as $expiryColumn) {
-                    if (Schema::hasColumn('circle_members', $expiryColumn)) {
-                        $nested->orWhere($expiryColumn, '>=', now());
-                    }
+                if (Schema::hasColumn('circle_members', 'expires_at')) {
+                    $nested->orWhere('expires_at', '>=', now());
                 }
             })
             ->orderByDesc('joined_at')

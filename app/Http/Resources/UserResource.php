@@ -159,10 +159,8 @@ class UserResource extends JsonResource
                 ->where(function ($query): void {
                     $query->whereNull('paid_ends_at')->orWhere('paid_ends_at', '>=', now());
 
-                    foreach (['expires_at', 'membership_ends_at', 'ends_at', 'subscription_ends_at'] as $expiryColumn) {
-                        if (Schema::hasColumn('circle_members', $expiryColumn)) {
-                            $query->orWhere($expiryColumn, '>=', now());
-                        }
+                    if (Schema::hasColumn('circle_members', 'expires_at')) {
+                        $query->orWhere('expires_at', '>=', now());
                     }
                 })
                 ->orderByDesc('joined_at')
@@ -255,22 +253,11 @@ class UserResource extends JsonResource
 
     private function resolveCircleMembershipExpiry($membership): mixed
     {
-        foreach ([
-            'expires_at',
-            'membership_ends_at',
-            'ends_at',
-            'subscription_ends_at',
-            'expired_at',
-            'paid_ends_at',
-        ] as $column) {
-            $value = $membership->getAttribute($column);
-
-            if (! blank($value)) {
-                return $value;
-            }
-        }
-
-        return $this->membership_ends_at ?? $this->membership_expiry ?? null;
+        return $membership->expires_at
+            ?? $membership->paid_ends_at
+            ?? $this->membership_ends_at
+            ?? $this->membership_expiry
+            ?? null;
     }
 
     private function resolvePrimaryCircleContext(): array
@@ -283,10 +270,8 @@ class UserResource extends JsonResource
             ->where(function ($query): void {
                 $query->whereNull('paid_ends_at')->orWhere('paid_ends_at', '>=', now());
 
-                foreach (['expires_at', 'membership_ends_at', 'ends_at', 'subscription_ends_at'] as $expiryColumn) {
-                    if (Schema::hasColumn('circle_members', $expiryColumn)) {
-                        $query->orWhere($expiryColumn, '>=', now());
-                    }
+                if (Schema::hasColumn('circle_members', 'expires_at')) {
+                    $query->orWhere('expires_at', '>=', now());
                 }
             })
             // Selection rule for legacy single-circle fields:

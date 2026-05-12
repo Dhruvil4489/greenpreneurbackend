@@ -110,6 +110,7 @@ class UsersController extends Controller
             'level_3_category_id' => $request->input('level_3_category_id', $request->input('level3_category_id')),
             'level_4_category_id' => $request->input('level_4_category_id', $request->input('level4_category_id')),
         ]);
+        $request->merge($this->normalizedAdminCircleDateInputs($request));
 
         $validated = $request->validate([
             'first_name' => ['required', 'string', 'max:100'],
@@ -190,29 +191,24 @@ class UsersController extends Controller
 
         $user = null;
 
-        DB::transaction(function () use (&$user, $validated, $circleId) {
+        DB::transaction(function () use (&$user, $validated, $circleId, $request) {
             $user = User::create($validated);
 
             if (! $circleId) {
                 return;
             }
 
-            $membershipAttributes = [
-                'role' => 'member',
-                'status' => $this->activeCircleMemberStatus(),
-            ];
-
-            if (Schema::hasColumn('circle_members', 'joined_at')) {
-                $membershipAttributes['joined_at'] = $validated['circle_joined_at'] ?? now();
-            }
-
-            CircleMember::query()->updateOrCreate(
-                [
-                    'circle_id' => $circleId,
-                    'user_id' => $user->id,
-                ],
-                $membershipAttributes,
-            );
+            $membership = new CircleMember([
+                'circle_id' => $circleId,
+                'user_id' => $user->id,
+            ]);
+            $membership->fill($this->circleMembershipAttributes(
+                $request,
+                $membership,
+                $this->activeCircleMemberStatus(),
+                true
+            ));
+            $membership->save();
         });
 
         return redirect()
@@ -409,8 +405,8 @@ class UsersController extends Controller
             'level_4_category_id' => ['nullable', 'integer', 'exists:circle_category_level4,id'],
             'active_circle_addon_code' => ['nullable', 'string', 'max:100'],
             'active_circle_addon_name' => ['nullable', 'string', 'max:255'],
-            'circle_joined_at' => [Rule::requiredIf($request->has('add_circle_membership')), 'nullable', 'date'],
-            'circle_expires_at' => [Rule::requiredIf($request->has('add_circle_membership')), 'nullable', 'date', 'after_or_equal:circle_joined_at'],
+            'circle_joined_at' => ['nullable', 'date'],
+            'circle_expires_at' => ['nullable', 'date', 'after_or_equal:circle_joined_at'],
             'coins_balance' => ['required', 'integer', 'min:0'],
             'life_impacted_count' => ['required', 'integer', 'min:0'],
             'influencer_stars' => ['nullable', 'integer', 'min:0'],
@@ -484,7 +480,26 @@ class UsersController extends Controller
         }
 
         // Manual test: update a user to inactive and verify admin list shows "Inactive".
-        $updatable = Arr::except($validated, ['role_ids', 'profile_photo_file_id', 'cover_photo_file_id', 'status', 'circle_id', 'active_circle_id', 'additional_circle_id', 'circle_city', 'circle_country', 'circle_meeting_mode', 'circle_meeting_frequency']);
+        $updatableExclusions = [
+            'role_ids',
+            'profile_photo_file_id',
+            'cover_photo_file_id',
+            'status',
+            'circle_id',
+            'active_circle_id',
+            'additional_circle_id',
+            'circle_city',
+            'circle_country',
+            'circle_meeting_mode',
+            'circle_meeting_frequency',
+        ];
+
+        if ($request->has('add_circle_membership') && $request->filled('additional_circle_id')) {
+            $updatableExclusions[] = 'circle_joined_at';
+            $updatableExclusions[] = 'circle_expires_at';
+        }
+
+        $updatable = Arr::except($validated, $updatableExclusions);
         if ($user->membership_status !== $validated['membership_status']) {
             $updatable['membership_ends_at'] = null;
             $updatable['membership_expiry'] = null;
@@ -586,38 +601,33 @@ class UsersController extends Controller
                     }
                 }
 
-                if ($selectedCircleId) {
-                    $membershipAttributes = [
-                        'role' => 'member',
-                        'status' => $activeCircleMemberStatus,
-                    ];
+                $additionalCircleId = $validated['additional_circle_id'] ?? null;
+                $isAddingAdditionalCircle = $request->has('add_circle_membership') && filled($additionalCircleId);
 
-                    if (Schema::hasColumn('circle_members', 'joined_at')) {
-                        $membershipAttributes['joined_at'] = $this->resolveCircleJoinedAt($request, $validated);
-                    }
-
-                    $this->applyCircleMembershipExpiry($membershipAttributes, $request);
-
+                if ($selectedCircleId && ! $isAddingAdditionalCircle) {
                     $memberRecord = CircleMember::query()->withTrashed()->firstOrNew([
                         'user_id' => $user->id,
                         'circle_id' => $selectedCircleId,
                     ]);
+                    $shouldApplySelectedCircleDates = ! $isAddingAdditionalCircle
+                        && (! $memberRecord->exists || $memberRecord->trashed());
+
+                    $membershipAttributes = $this->circleMembershipAttributes(
+                        $request,
+                        $memberRecord,
+                        $activeCircleMemberStatus,
+                        $shouldApplySelectedCircleDates
+                    );
+
                     if ($memberRecord->trashed()) {
-                        $memberRecord->deleted_at = null;
-                    }
-                    if (Schema::hasColumn('circle_members', 'payment_status') && blank($memberRecord->payment_status)) {
-                        $membershipAttributes['payment_status'] = 'approved';
+                        $memberRecord->restore();
                     }
                     $memberRecord->fill(array_merge($membershipAttributes, ['left_at' => null]));
                     $memberRecord->save();
 
-                    Log::info('admin_user_circle_membership_saved', [
-                        'user_id' => $user->id,
-                        'circle_member_id' => $memberRecord->id,
-                        'circle_id' => $selectedCircleId,
-                        'joined_at' => $memberRecord->joined_at,
-                        'expires_at' => $this->resolveCircleMembershipExpiryValue($memberRecord),
-                    ]);
+                    if ($shouldApplySelectedCircleDates) {
+                        $this->logAdminCircleMembershipSaved($memberRecord, $selectedCircleId);
+                    }
 
                     $this->upsertCircleMemberCategorySelection($memberRecord, $user->id, $validated);
 
@@ -686,39 +696,37 @@ class UsersController extends Controller
                     ]);
                 }
 
-                $additionalCircleId = $validated['additional_circle_id'] ?? null;
-                if ($additionalCircleId) {
-                    $additionalMembership = [
-                        'role' => 'member',
-                        'status' => $activeCircleMemberStatus,
-                    ];
-
-                    if (Schema::hasColumn('circle_members', 'joined_at')) {
-                        $additionalMembership['joined_at'] = $this->resolveCircleJoinedAt($request, $validated);
+                if ($isAddingAdditionalCircle) {
+                    if (app()->environment('local')) {
+                        Log::info('admin_add_circle_membership_request', [
+                            'user_id' => $user->id,
+                            'additional_circle_id' => $additionalCircleId,
+                            'circle_joined_date' => $request->input('circle_joined_date', $request->input('circle_joined_at')),
+                            'circle_expiry_date' => $request->input('circle_expiry_date', $request->input('circle_expires_at')),
+                        ]);
                     }
 
-                    $this->applyCircleMembershipExpiry($additionalMembership, $request);
+                    $additionalMemberRecord = CircleMember::query()->withTrashed()
+                        ->where('user_id', $user->id)
+                        ->where('circle_id', $additionalCircleId)
+                        ->first();
 
-                    $additionalMemberRecord = CircleMember::query()->withTrashed()->firstOrNew([
-                        'user_id' => $user->id,
-                        'circle_id' => $additionalCircleId,
-                    ]);
-                    if ($additionalMemberRecord->trashed()) {
-                        $additionalMemberRecord->deleted_at = null;
+                    if (! $additionalMemberRecord) {
+                        $additionalMemberRecord = new CircleMember([
+                            'user_id' => $user->id,
+                            'circle_id' => $additionalCircleId,
+                        ]);
+                    } elseif ($additionalMemberRecord->trashed()) {
+                        $additionalMemberRecord->restore();
                     }
-                    if (Schema::hasColumn('circle_members', 'payment_status') && blank($additionalMemberRecord->payment_status)) {
-                        $additionalMembership['payment_status'] = 'approved';
-                    }
-                    $additionalMemberRecord->fill(array_merge($additionalMembership, ['left_at' => null]));
+
+                    $additionalMemberRecord->fill(array_merge(
+                        $this->circleMembershipAttributes($request, $additionalMemberRecord, $activeCircleMemberStatus, true),
+                        ['left_at' => null]
+                    ));
                     $additionalMemberRecord->save();
 
-                    Log::info('admin_user_circle_membership_saved', [
-                        'user_id' => $user->id,
-                        'circle_member_id' => $additionalMemberRecord->id,
-                        'circle_id' => $additionalCircleId,
-                        'joined_at' => $additionalMemberRecord->joined_at,
-                        'expires_at' => $this->resolveCircleMembershipExpiryValue($additionalMemberRecord),
-                    ]);
+                    $this->logAdminCircleMembershipSaved($additionalMemberRecord, $additionalCircleId);
 
                     $this->upsertCircleMemberCategorySelection($additionalMemberRecord, $user->id, $validated);
                 }
@@ -1245,56 +1253,96 @@ class UsersController extends Controller
         return array_values($parts);
     }
 
-    private function resolveCircleJoinedAt(Request $request, array $validated): mixed
+    private function normalizedAdminCircleDateInputs(Request $request): array
     {
-        if ($request->filled('circle_joined_at')) {
-            return Carbon::parse($request->input('circle_joined_at'))->startOfDay();
-        }
+        $normalized = [];
 
-        return $validated['circle_joined_at'] ?? now();
-    }
+        foreach ([
+            'circle_joined_at' => 'circle_joined_date',
+            'circle_expires_at' => 'circle_expiry_date',
+        ] as $canonical => $alias) {
+            $raw = $request->input($alias, $request->input($canonical));
+            $date = $this->parseAdminDate(is_string($raw) ? $raw : null, $canonical === 'circle_expires_at');
 
-    private function applyCircleMembershipExpiry(array &$attributes, Request $request): void
-    {
-        $expiryColumn = $this->circleMembershipExpiryColumn();
-
-        if (! $expiryColumn) {
-            return;
-        }
-
-        if ($request->filled('circle_expires_at')) {
-            $attributes[$expiryColumn] = Carbon::parse($request->input('circle_expires_at'))->endOfDay();
-
-            return;
-        }
-
-        if ($request->has('add_circle_membership')) {
-            $attributes[$expiryColumn] = null;
-        }
-    }
-
-    private function circleMembershipExpiryColumn(): ?string
-    {
-        foreach (['expires_at', 'membership_ends_at', 'ends_at', 'subscription_ends_at', 'expired_at', 'paid_ends_at'] as $column) {
-            if (Schema::hasColumn('circle_members', $column)) {
-                return $column;
+            if ($date) {
+                $normalized[$canonical] = $date->format('Y-m-d');
             }
         }
 
-        return null;
+        return $normalized;
     }
 
-    private function resolveCircleMembershipExpiryValue(CircleMember $membership): mixed
-    {
-        foreach (['expires_at', 'membership_ends_at', 'ends_at', 'subscription_ends_at', 'expired_at', 'paid_ends_at'] as $column) {
-            $value = $membership->getAttribute($column);
+    private function circleMembershipAttributes(
+        Request $request,
+        CircleMember $membership,
+        string $status,
+        bool $applyDates
+    ): array {
+        $attributes = [
+            'role' => $membership->role ?: 'member',
+            'status' => $status,
+        ];
 
-            if (! blank($value)) {
-                return $value;
-            }
+        if (Schema::hasColumn('circle_members', 'payment_status') && blank($membership->payment_status)) {
+            $attributes['payment_status'] = 'approved';
         }
 
-        return null;
+        if (! $applyDates) {
+            return $attributes;
+        }
+
+        $joinedAt = $this->parseAdminDate(
+            (string) $request->input('circle_joined_date', $request->input('circle_joined_at'))
+        ) ?? now()->startOfDay();
+        $expiresAt = $this->parseAdminDate(
+            (string) $request->input('circle_expiry_date', $request->input('circle_expires_at')),
+            true
+        ) ?? $joinedAt->copy()->addYear()->endOfDay();
+
+        if (Schema::hasColumn('circle_members', 'joined_at')) {
+            $attributes['joined_at'] = $joinedAt;
+        }
+
+        $attributes['expires_at'] = $expiresAt;
+
+        return $attributes;
+    }
+
+    private function parseAdminDate(?string $value, bool $endOfDay = false): ?Carbon
+    {
+        if (! $value) {
+            return null;
+        }
+
+        try {
+            $date = preg_match('/^\d{2}-\d{2}-\d{4}$/', $value)
+                ? Carbon::createFromFormat('d-m-Y', $value)
+                : Carbon::parse($value);
+
+            return $endOfDay ? $date->endOfDay() : $date->startOfDay();
+        } catch (Throwable $exception) {
+            Log::warning('admin_circle_date_parse_failed', [
+                'value' => $value,
+                'error' => $exception->getMessage(),
+            ]);
+
+            return null;
+        }
+    }
+
+    private function logAdminCircleMembershipSaved(CircleMember $membership, string $circleId): void
+    {
+        if (! app()->environment('local')) {
+            return;
+        }
+
+        Log::info('admin_circle_membership_saved', [
+            'membership_id' => $membership->id,
+            'user_id' => $membership->user_id,
+            'circle_id' => $circleId,
+            'joined_at' => $membership->joined_at?->toDateTimeString(),
+            'expires_at' => $membership->expires_at?->toDateTimeString(),
+        ]);
     }
 
     private function activeCircleMemberStatus(): string
@@ -1312,10 +1360,8 @@ class UsersController extends Controller
             ->where(function ($query): void {
                 $query->whereNull('paid_ends_at')->orWhere('paid_ends_at', '>=', now());
 
-                foreach (['expires_at', 'membership_ends_at', 'ends_at', 'subscription_ends_at'] as $expiryColumn) {
-                    if (Schema::hasColumn('circle_members', $expiryColumn)) {
-                        $query->orWhere($expiryColumn, '>=', now());
-                    }
+                if (Schema::hasColumn('circle_members', 'expires_at')) {
+                    $query->orWhere('expires_at', '>=', now());
                 }
             });
     }
@@ -1406,10 +1452,8 @@ class UsersController extends Controller
                         ->where(function ($query): void {
                             $query->whereNull('paid_ends_at')->orWhere('paid_ends_at', '>=', now());
 
-                            foreach (['expires_at', 'membership_ends_at', 'ends_at', 'subscription_ends_at'] as $expiryColumn) {
-                                if (Schema::hasColumn('circle_members', $expiryColumn)) {
-                                    $query->orWhere($expiryColumn, '>=', now());
-                                }
+                            if (Schema::hasColumn('circle_members', 'expires_at')) {
+                                $query->orWhere('expires_at', '>=', now());
                             }
                         })
                         ->orderByDesc('joined_at')

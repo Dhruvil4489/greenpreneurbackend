@@ -688,6 +688,48 @@
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+    const joinedInput = document.querySelector('[name="circle_joined_date"]')
+        || document.querySelector('[name="circle_joined_at"]');
+    const expiryInput = document.querySelector('[name="circle_expiry_date"]')
+        || document.querySelector('[name="circle_expires_at"]');
+
+    function parseDate(value) {
+        if (!value) return null;
+
+        const dmY = value.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+        if (dmY) {
+            return new Date(Number(dmY[3]), Number(dmY[2]) - 1, Number(dmY[1]));
+        }
+
+        const ymD = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (ymD) {
+            return new Date(Number(ymD[1]), Number(ymD[2]) - 1, Number(ymD[3]));
+        }
+
+        return null;
+    }
+
+    function formatDate(date, useNativeDateFormat) {
+        const dd = String(date.getDate()).padStart(2, '0');
+        const mm = String(date.getMonth() + 1).padStart(2, '0');
+        const yyyy = date.getFullYear();
+
+        return useNativeDateFormat ? `${yyyy}-${mm}-${dd}` : `${dd}-${mm}-${yyyy}`;
+    }
+
+    if (joinedInput && expiryInput) {
+        joinedInput.addEventListener('change', function () {
+            if (expiryInput.value) return;
+
+            const joinedDate = parseDate(joinedInput.value);
+            if (!joinedDate) return;
+
+            const expiryDate = new Date(joinedDate);
+            expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+
+            expiryInput.value = formatDate(expiryDate, expiryInput.type === 'date');
+        });
+    }
 });
 </script>
 @endpush

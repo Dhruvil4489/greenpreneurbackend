@@ -396,7 +396,6 @@ class UsersController extends Controller
                 'nullable',
                 'uuid',
                 'exists:circles,id',
-                'different:active_circle_id',
                 Rule::requiredIf($request->has('add_circle_membership')),
             ],
             'level_1_category_id' => ['nullable', 'integer', 'exists:circle_categories,id'],
@@ -436,6 +435,20 @@ class UsersController extends Controller
         ], [
             'role_ids.max' => 'You can not assign multiple roles.',
         ]);
+
+        if ($request->has('add_circle_membership') && filled($validated['additional_circle_id'] ?? null)) {
+            $alreadyJoined = CircleMember::query()
+                ->where('user_id', $user->id)
+                ->where('circle_id', $validated['additional_circle_id'])
+                ->whereNull('deleted_at')
+                ->exists();
+
+            if ($alreadyJoined) {
+                return back()
+                    ->withErrors(['additional_circle_id' => 'Peer is already joined to the selected circle.'])
+                    ->withInput();
+            }
+        }
 
         $request->merge([
             'coins_remark' => $coinsRemark,

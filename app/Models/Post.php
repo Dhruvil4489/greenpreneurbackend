@@ -30,6 +30,10 @@ class Post extends Model
         'moderation_status',
         'sponsored',
         'is_deleted',
+        'active',
+        'source_type',
+        'source_id',
+        'source_event',
     ];
 
     protected $casts = [
@@ -37,6 +41,7 @@ class Post extends Model
         'tags' => 'array',
         'sponsored' => 'boolean',
         'is_deleted' => 'boolean',
+        'active' => 'boolean',
     ];
 
     protected static function booted(): void

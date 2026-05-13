@@ -22,6 +22,9 @@ class CollaborationPost extends Model
     public const STATUS_EXPIRED = 'expired';
     public const STATUS_DELETED = 'deleted';
 
+    public const COMPLETION_INCOMPLETE = 'incomplete';
+    public const COMPLETION_COMPLETED = 'completed';
+
     protected $fillable = [
         'id',
         'user_id',
@@ -37,6 +40,8 @@ class CollaborationPost extends Model
         'years_in_operation',
         'urgency',
         'status',
+        'completion_status',
+        'completed_at',
         'posted_at',
         'expires_at',
     ];
@@ -45,6 +50,7 @@ class CollaborationPost extends Model
         'countries_of_interest' => 'array',
         'posted_at' => 'datetime',
         'expires_at' => 'datetime',
+        'completed_at' => 'datetime',
     ];
 
     protected static function booted(): void
@@ -52,6 +58,10 @@ class CollaborationPost extends Model
         static::creating(function (self $post): void {
             if (blank($post->id)) {
                 $post->id = (string) Str::uuid();
+            }
+
+            if (blank($post->completion_status)) {
+                $post->completion_status = self::COMPLETION_INCOMPLETE;
             }
         });
     }

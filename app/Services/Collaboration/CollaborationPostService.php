@@ -59,6 +59,7 @@ class CollaborationPostService
             'years_in_operation' => $data['years_in_operation'],
             'urgency' => $data['urgency'],
             'status' => CollaborationPost::STATUS_ACTIVE,
+            'completion_status' => CollaborationPost::COMPLETION_INCOMPLETE,
             'posted_at' => now(),
             'expires_at' => now()->addDays(60),
         ];

@@ -189,6 +189,9 @@ Route::prefix('v1')->group(function () {
         Route::delete('follows/{follow}/cancel', [FollowController::class, 'cancel'])->whereUuid('follow');
 
         // Collaborations
+        Route::get('/collaborations/history', [CollaborationPostController::class, 'history']);
+        Route::patch('/collaborations/{id}/complete', [CollaborationPostController::class, 'complete'])->whereUuid('id');
+        Route::patch('/collaborations/{id}/accept', [CollaborationPostController::class, 'accept'])->whereUuid('id');
         Route::post('/collaborations', [CollaborationPostController::class, 'store']);
 
         // Circles

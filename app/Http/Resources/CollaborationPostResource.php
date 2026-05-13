@@ -34,6 +34,8 @@ class CollaborationPostResource extends JsonResource
             'years_in_operation' => $this->years_in_operation,
             'urgency' => $this->urgency,
             'status' => $this->status,
+            'completion_status' => $this->completion_status ?: 'incomplete',
+            'completed_at' => optional($this->completed_at)->toIso8601String(),
             'posted_at' => optional($this->posted_at)->toIso8601String(),
             'posted_days_ago' => $this->posted_at ? $this->posted_at->diffInDays(now()) : null,
             'expires_at' => optional($this->expires_at)->toIso8601String(),

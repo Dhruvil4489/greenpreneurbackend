@@ -41,6 +41,8 @@ class CollaborationPostListResource extends JsonResource
             'posted_days_ago' => $this->posted_at ? $this->posted_at->diffInDays(now()) : null,
             'expires_at' => optional($this->expires_at)->toIso8601String(),
             'status' => $this->status,
+            'completion_status' => $this->completion_status ?: 'incomplete',
+            'completed_at' => optional($this->completed_at)->toIso8601String(),
             'interests_count' => (int) ($this->interests_count ?? 0),
             'meetings_count' => (int) ($this->meeting_requests_count ?? 0),
             'is_interested_by_me' => (bool) ($this->is_interested_by_me ?? false),

@@ -133,6 +133,7 @@ Route::prefix('v1')->group(function () {
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/membership-summary', [MembershipSummaryController::class, 'show']);
         Route::get('/users/{user_id}/activity-summary', [UserActivitySummaryController::class, 'summary']);
+        Route::get('/users/{user}/posts', [PostController::class, 'userPosts'])->name('users.posts.index');
 
         Route::get('/my-circles', [MyCircleController::class, 'index']);
 

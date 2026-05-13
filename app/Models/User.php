@@ -130,6 +130,7 @@ class User extends Authenticatable
         'is_online',
         'profile_photo_file_id',
         'cover_photo_file_id',
+        'profile_video_id',
         'zoho_customer_id',
         'zoho_subscription_id',
         'zoho_plan_code',
@@ -772,6 +773,11 @@ class User extends Authenticatable
         return $this->belongsTo(File::class, 'cover_photo_file_id');
     }
 
+    public function profileVideoFile(): BelongsTo
+    {
+        return $this->belongsTo(File::class, 'profile_video_id');
+    }
+
     public function getProfilePhotoUrlAttribute(): ?string
     {
         if (! $this->profile_photo_file_id) {
@@ -779,6 +785,15 @@ class User extends Authenticatable
         }
 
         return url('/api/v1/files/' . $this->profile_photo_file_id);
+    }
+
+    public function getProfileVideoUrlAttribute(): ?string
+    {
+        if (! $this->profile_video_id) {
+            return null;
+        }
+
+        return url('/api/v1/files/' . $this->profile_video_id);
     }
 
     public function isFreeMember(): bool

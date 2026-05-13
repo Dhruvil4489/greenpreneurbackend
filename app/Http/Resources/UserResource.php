@@ -16,10 +16,16 @@ class UserResource extends JsonResource
 {
     public function toArray($request): array
     {
+        $profilePhotoId = $this->profile_photo_file_id ?? $this->profile_photo_id;
+        $profilePhotoUrl = $profilePhotoId
+            ? url('/api/v1/files/' . $profilePhotoId)
+            : null;
         $coverPhotoId = $this->cover_photo_file_id;
         $coverPhotoUrl = $coverPhotoId
             ? url('/api/v1/files/' . $coverPhotoId)
             : null;
+        $profileVideoId = $this->profile_video_id;
+        $profileVideoUrl = $this->resolveProfileVideoUrl();
 
         $membershipStatus = $this->effective_membership_status ?? $this->membership_status;
         $resolvedCircle = $this->resolvePrimaryCircleContext();
@@ -35,8 +41,14 @@ class UserResource extends JsonResource
         return [
             'id'                  => $this->id,
             'public_profile_slug' => $this->public_profile_slug,
-            'profile_photo_id'    => $this->profile_photo_file_id,
+            'profile_photo_id'    => $profilePhotoId,
             'cover_photo_id'      => $coverPhotoId,
+            'profile_video_id'    => $profileVideoId,
+            'profile_video'       => $profileVideoId ? [
+                'id' => (string) $profileVideoId,
+                'url' => $profileVideoUrl,
+            ] : null,
+            'profile_video_url'   => $profileVideoUrl,
             'first_name'          => $this->first_name,
             'last_name'           => $this->last_name,
             'display_name'        => $this->display_name,
@@ -111,7 +123,7 @@ class UserResource extends JsonResource
             'special_recognitions'=> $this->special_recognitions ?? [],
             'social_links'        => $this->resolveSocialLinks(),
             'media'               => $this->mediaValue(),
-            'profile_photo_url'   => $this->profile_photo_url,
+            'profile_photo_url'   => $profilePhotoUrl,
             'cover_photo_url'     => $coverPhotoUrl,
             'address'             => $this->address ?? null,
             'state'               => $this->state ?? null,
@@ -123,6 +135,37 @@ class UserResource extends JsonResource
             'created_at'          => $this->created_at,
             'updated_at'          => $this->updated_at,
         ];
+    }
+
+
+    private function resolveProfileVideoUrl(): ?string
+    {
+        $media = $this->media;
+
+        if (is_string($media) && $media !== '') {
+            $decoded = json_decode($media, true);
+            $media = is_array($decoded) ? $decoded : [];
+        }
+
+        if (! is_array($media) || $media === []) {
+            return null;
+        }
+
+        $firstMedia = array_values($media)[0] ?? null;
+
+        if (! is_array($firstMedia)) {
+            return null;
+        }
+
+        if (! blank($firstMedia['url'] ?? null)) {
+            return (string) $firstMedia['url'];
+        }
+
+        if (! blank($firstMedia['id'] ?? null)) {
+            return url('/api/v1/files/' . $firstMedia['id']);
+        }
+
+        return null;
     }
 
     /**

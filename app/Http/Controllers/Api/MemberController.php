@@ -16,26 +16,33 @@ class MemberController extends BaseApiController
 {
     public function index(Request $request, PeerBlockService $peerBlockService)
     {
+        $selectColumns = [
+            'id',
+            'public_profile_slug',
+            'first_name',
+            'last_name',
+            'display_name',
+            'company_name',
+            'email',
+            'phone',
+            'membership_status',
+            'coins_balance',
+            'last_login_at',
+            'created_at',
+            'updated_at',
+            'profile_photo_file_id',
+            'media',
+            'city_id',
+            'city',
+            'business_type',
+        ];
+
+        if (Schema::hasColumn('users', 'profile_video_id')) {
+            $selectColumns[] = 'profile_video_id';
+        }
+
         $query = User::query()
-            ->select([
-                'id',
-                'public_profile_slug',
-                'first_name',
-                'last_name',
-                'display_name',
-                'company_name',
-                'email',
-                'phone',
-                'membership_status',
-                'coins_balance',
-                'last_login_at',
-                'created_at',
-                'updated_at',
-                'profile_photo_file_id',
-                'city_id',
-                'city',
-                'business_type',
-            ])
+            ->select($selectColumns)
             ->with([
                 'city:id,name',
                 'circleMemberships' => fn ($query) => $this->joinedCircleMembershipsQuery($query),

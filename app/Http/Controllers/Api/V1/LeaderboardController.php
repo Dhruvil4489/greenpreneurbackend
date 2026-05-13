@@ -50,24 +50,42 @@ class LeaderboardController extends Controller
 
     private function baseLeaderboardQuery(): Builder
     {
+        $select = [
+            'id',
+            'display_name',
+            'first_name',
+            'last_name',
+            'company_name',
+            'business_type',
+            'profile_photo_file_id',
+            'coins_balance',
+            'life_impacted_count',
+            'coin_medal_rank',
+            'coin_milestone_title',
+            'coin_milestone_meaning',
+            'contribution_award_name',
+            'contribution_award_recognition',
+        ];
+
+        if (Schema::hasColumn('users', 'designation')) {
+            $select[] = 'designation';
+        }
+
+        if (Schema::hasColumn('users', 'city_id')) {
+            $select[] = 'city_id';
+        }
+
+        if (Schema::hasColumn('users', 'city')) {
+            $select[] = 'city';
+        }
+
         $query = User::query()
-            ->select([
-                'id',
-                'display_name',
-                'first_name',
-                'last_name',
-                'company_name',
-                'business_type',
-                'profile_photo_file_id',
-                'coins_balance',
-                'life_impacted_count',
-                'coin_medal_rank',
-                'coin_milestone_title',
-                'coin_milestone_meaning',
-                'contribution_award_name',
-                'contribution_award_recognition',
-            ])
+            ->select($select)
             ->whereNull('deleted_at');
+
+        if (Schema::hasTable('cities') && Schema::hasColumn('users', 'city_id')) {
+            $query->with('city:id,name');
+        }
 
         if (Schema::hasColumn('users', 'status')) {
             $query->where('status', 'active');
@@ -88,6 +106,8 @@ class LeaderboardController extends Controller
                 'first_name' => $member->first_name,
                 'last_name' => $member->last_name,
                 'company_name' => $member->company_name,
+                'designation' => $member->designation,
+                'city' => $this->resolveCityName($member),
                 'category' => $member->business_type,
                 'profile_photo' => [
                     'file_id' => $profilePhotoFileId,
@@ -102,5 +122,32 @@ class LeaderboardController extends Controller
                 'contribution_award_recognition' => $member->contribution_award_recognition,
             ];
         });
+    }
+
+    private function resolveCityName(User $member): ?string
+    {
+        if ($member->relationLoaded('city')) {
+            $city = $member->getRelation('city');
+
+            if ($city && filled($city->name)) {
+                return $city->name;
+            }
+        }
+
+        $attributes = $member->getAttributes();
+
+        if (! array_key_exists('city', $attributes)) {
+            return null;
+        }
+
+        $city = $attributes['city'];
+
+        if (! is_string($city)) {
+            return $city ?: null;
+        }
+
+        $city = trim($city);
+
+        return $city !== '' ? $city : null;
     }
 }

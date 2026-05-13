@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Requests\Post\StorePostCommentRequest;
 use App\Http\Requests\Post\StorePostRequest;
+use App\Http\Resources\PostResource;
 use App\Http\Resources\PostCommentResource;
 use App\Models\Circle;
 use App\Models\CircleMember;
@@ -20,6 +21,7 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Throwable;
 
 class PostController extends BaseApiController
@@ -185,6 +187,49 @@ class PostController extends BaseApiController
                 'total' => $posts->total(),
             ],
         ]);
+    }
+
+    public function userPosts(Request $request, string $userId)
+    {
+        if (! Str::isUuid($userId)) {
+            return $this->error('User not found', 404);
+        }
+
+        $user = User::query()->find($userId);
+
+        if (! $user) {
+            return $this->error('User not found', 404);
+        }
+
+        $authUser = $request->user();
+        $perPage = max(1, min((int) $request->integer('per_page', 10), 50));
+
+        $posts = Post::query()
+            ->where('user_id', $user->id)
+            ->where('posts.is_deleted', false)
+            ->whereNull('posts.deleted_at')
+            ->with([
+                'author:id,display_name,first_name,last_name,profile_photo_file_id',
+                'circle:id,name',
+            ])
+            ->withCount(['likes', 'comments', 'saves'])
+            ->when($authUser, function ($query) use ($authUser): void {
+                $query->withExists([
+                    'likes as is_liked_by_me' => fn ($likeQuery) => $likeQuery->where('user_id', $authUser->id),
+                    'saves as is_saved_by_me' => fn ($saveQuery) => $saveQuery->where('user_id', $authUser->id),
+                ]);
+            })
+            ->latest('created_at')
+            ->paginate($perPage);
+
+        return $this->success([
+            'user_id' => (string) $user->id,
+            'total' => $posts->total(),
+            'current_page' => $posts->currentPage(),
+            'per_page' => $posts->perPage(),
+            'last_page' => $posts->lastPage(),
+            'items' => PostResource::collection($posts->items()),
+        ], 'User posts fetched successfully.');
     }
 
     private function decodeJsonColumn(mixed $value): array

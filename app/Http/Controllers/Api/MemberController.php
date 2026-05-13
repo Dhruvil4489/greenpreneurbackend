@@ -7,8 +7,10 @@ use App\Http\Resources\MemberDetailResource;
 use App\Http\Resources\UserResource;
 use App\Models\Connection;
 use App\Models\User;
+use App\Models\UserFollow;
 use App\Services\Blocks\PeerBlockService;
 use App\Services\Notifications\NotifyUserService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 
@@ -16,29 +18,40 @@ class MemberController extends BaseApiController
 {
     public function index(Request $request, PeerBlockService $peerBlockService)
     {
+        $selectColumns = [
+            'id',
+            'public_profile_slug',
+            'first_name',
+            'last_name',
+            'display_name',
+            'company_name',
+            'email',
+            'phone',
+            'membership_status',
+            'coins_balance',
+            'last_login_at',
+            'created_at',
+            'updated_at',
+            'profile_photo_file_id',
+            'media',
+            'city_id',
+            'city',
+            'business_type',
+        ];
+
+        if (Schema::hasColumn('users', 'profile_video_id')) {
+            $selectColumns[] = 'profile_video_id';
+        }
+
         $query = User::query()
-            ->select([
-                'id',
-                'public_profile_slug',
-                'first_name',
-                'last_name',
-                'display_name',
-                'company_name',
-                'email',
-                'phone',
-                'membership_status',
-                'coins_balance',
-                'last_login_at',
-                'created_at',
-                'updated_at',
-                'profile_photo_file_id',
-                'city_id',
-                'city',
-                'business_type',
-            ])
+            ->select($selectColumns)
             ->with([
                 'city:id,name',
                 'circleMemberships' => fn ($query) => $this->joinedCircleMembershipsQuery($query),
+            ])
+            ->withCount([
+                'followers as followers_count',
+                'following as following_count',
             ]);
 
         // Manual test: inactive members should be excluded from the members list API.
@@ -126,7 +139,12 @@ class MemberController extends BaseApiController
 
     public function show(Request $request, string $id, PeerBlockService $peerBlockService)
     {
-        $user = User::with($this->memberDetailRelations())->find($id);
+        $user = User::with($this->memberDetailRelations())
+            ->withCount([
+                'followers as followers_count',
+                'following as following_count',
+            ])
+            ->find($id);
 
         if (! $user) {
             return $this->error('Member not found', 404);
@@ -143,6 +161,10 @@ class MemberController extends BaseApiController
     public function publicProfileBySlug(Request $request, string $slug, PeerBlockService $peerBlockService)
     {
         $user = User::with($this->memberDetailRelations())
+            ->withCount([
+                'followers as followers_count',
+                'following as following_count',
+            ])
             ->where('public_profile_slug', $slug)
             ->first();
 
@@ -156,6 +178,90 @@ class MemberController extends BaseApiController
         }
 
         return $this->success(new MemberDetailResource($user));
+    }
+
+    public function followersCount(string $user): JsonResponse
+    {
+        $member = User::query()->find($user);
+
+        if (! $member) {
+            return $this->error('User not found.', 404);
+        }
+
+        $followersQuery = UserFollow::query()
+            ->where('following_id', $member->id)
+            ->with([
+                'follower:id,display_name,first_name,last_name,company_name,designation,email,phone,city_id,city,country,profile_photo_file_id',
+                'follower.city:id,name',
+            ]);
+
+        $followersCount = (clone $followersQuery)->count();
+
+        $followers = $followersQuery
+            ->latest('requested_at')
+            ->get()
+            ->map(fn (UserFollow $follow): array => $this->formatFollowerCountItem($follow))
+            ->values();
+
+        return $this->success([
+            'user_id' => (string) $member->id,
+            'followers_count' => $followersCount,
+            'followers' => $followers,
+        ], 'Follower count fetched successfully.');
+    }
+
+    private function formatFollowerCountItem(UserFollow $follow): array
+    {
+        $follower = $follow->follower;
+
+        return [
+            'follow_id' => (string) $follow->id,
+            'status' => $follow->status,
+            'requested_at' => optional($follow->requested_at)?->toISOString(),
+            'accepted_at' => optional($follow->accepted_at)?->toISOString(),
+            'user' => $follower ? $this->formatFollowerUser($follower) : null,
+        ];
+    }
+
+    private function formatFollowerUser(User $follower): array
+    {
+        $profilePhotoId = $follower->profile_photo_file_id;
+
+        return [
+            'id' => (string) $follower->id,
+            'display_name' => $follower->display_name,
+            'first_name' => $follower->first_name,
+            'last_name' => $follower->last_name,
+            'company_name' => $follower->company_name,
+            'designation' => $follower->designation,
+            'email' => $follower->email,
+            'phone' => $follower->phone,
+            'city' => $this->resolveFollowerCityName($follower),
+            'country' => $follower->country,
+            'profile_photo_id' => $profilePhotoId,
+            'profile_photo_url' => $profilePhotoId
+                ? url('/api/v1/files/' . $profilePhotoId)
+                : null,
+        ];
+    }
+
+    private function resolveFollowerCityName(User $follower): ?string
+    {
+        if ($follower->relationLoaded('city')) {
+            $city = $follower->getRelation('city');
+
+            if ($city) {
+                return $city->name;
+            }
+        }
+
+        $city = $follower->getAttribute('city');
+
+        if (is_array($city)) {
+            return $city['name'] ?? null;
+        }
+
+        return $city ?: null;
     }
 
     private function memberDetailRelations(): array

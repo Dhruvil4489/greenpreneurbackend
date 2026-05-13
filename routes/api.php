@@ -133,6 +133,7 @@ Route::prefix('v1')->group(function () {
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/membership-summary', [MembershipSummaryController::class, 'show']);
         Route::get('/users/{user_id}/activity-summary', [UserActivitySummaryController::class, 'summary']);
+        Route::get('/users/{user}/posts', [PostController::class, 'userPosts'])->name('users.posts.index');
 
         Route::get('/my-circles', [MyCircleController::class, 'index']);
 
@@ -176,6 +177,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/me/connection-requests', [MemberController::class, 'myConnectionRequests']);
 
         // Follow system
+        Route::get('users/{user}/followers/count', [MemberController::class, 'followersCount'])->whereUuid('user');
         Route::post('users/{user}/follow', [FollowController::class, 'requestFollow'])->whereUuid('user');
         Route::delete('users/{user}/unfollow', [FollowController::class, 'unfollow'])->whereUuid('user');
         Route::get('users/{user}/follow-status', [FollowController::class, 'status'])->whereUuid('user');

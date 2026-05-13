@@ -103,6 +103,8 @@ class UserResource extends JsonResource
                     ];
                 }),
             'circle_memberships' => $this->resolveCircleMemberships(),
+            'followers_count'     => (int) ($this->followers_count ?? 0),
+            'following_count'     => (int) ($this->following_count ?? 0),
             'coins_balance'       => $this->coins_balance,
             'life_impacted_count' => (int) ($this->life_impacted_count ?? 0),
             'business_type'       => $this->business_type,

@@ -618,6 +618,16 @@ class User extends Authenticatable
         return $this->hasMany(Connection::class, 'addressee_id');
     }
 
+    public function followers(): HasMany
+    {
+        return $this->hasMany(UserFollow::class, 'following_id');
+    }
+
+    public function following(): HasMany
+    {
+        return $this->hasMany(UserFollow::class, 'follower_id');
+    }
+
     public function posts(): HasMany
     {
         return $this->hasMany(Post::class);

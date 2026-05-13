@@ -2,7 +2,9 @@
 
 namespace App\Http\Resources;
 
+use App\Models\JoinedCircleCategory;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Schema;
 
 class CircleMemberResource extends JsonResource
 {
@@ -19,43 +21,47 @@ class CircleMemberResource extends JsonResource
             'role_id' => $this->role_id,
 
             'user' => $this->whenLoaded('user', function () {
-                $photoFileId = data_get($this->user, 'profile_photo_file_id')
-                    ?: data_get($this->user, 'image_file_id')
-                    ?: data_get($this->user, 'avatar_file_id')
-                    ?: data_get($this->user, 'profile_image_file_id')
-                    ?: data_get($this->user, 'photo_file_id')
-                    ?: data_get($this->user, 'profile_file_id');
+                $user = $this->user;
+                $cityName = $this->resolveCityName($user);
+                $categories = $this->resolveJoinedCircleCategories($user);
+                $primaryCategory = $categories[0]['level1_category'] ?? null;
+                $categoryId = $primaryCategory['id'] ?? null;
+                $categoryName = $primaryCategory['name'] ?? null;
+                $photoFileId = data_get($user, 'profile_photo_file_id')
+                    ?: data_get($user, 'image_file_id')
+                    ?: data_get($user, 'avatar_file_id')
+                    ?: data_get($user, 'profile_image_file_id')
+                    ?: data_get($user, 'photo_file_id')
+                    ?: data_get($user, 'profile_file_id');
 
-                $name = $this->user->name
-                    ?? $this->user->display_name
-                    ?? trim(($this->user->first_name ?? '') . ' ' . ($this->user->last_name ?? ''))
-                    ?: $this->user->email;
+                $name = $user?->name
+                    ?? $user?->display_name
+                    ?? trim(($user?->first_name ?? '') . ' ' . ($user?->last_name ?? ''))
+                    ?: $user?->email;
 
                 return [
-                    'id' => $this->user->id,
+                    'id' => $user?->id,
                     'name' => $name,
-                    'email' => $this->user->email,
-                    'phone' => $this->user->phone ?? null,
-                    'country_code' => $this->user->country_code ?? null,
-                    'city_id' => $this->user->city_id ?? null,
-                    'city_name' => optional($this->user->cityRelation)->name ?? null,
-                    'city' => $this->user->cityRelation ? [
-                        'id' => $this->user->cityRelation->id,
-                        'name' => $this->user->cityRelation->name,
-                        'state' => $this->user->cityRelation->state,
-                        'district' => $this->user->cityRelation->district,
-                        'country' => $this->user->cityRelation->country,
-                        'country_code' => $this->user->cityRelation->country_code,
-                    ] : null,
-                    'membership_status' => $this->user->membership_status ?? null,
-                    'is_active' => $this->user->is_active ?? null,
+                    'email' => $user?->email,
+                    'phone' => $user?->phone ?? null,
+                    'country_code' => $user?->country_code ?? null,
+                    'city_id' => $user?->city_id,
+                    'city_name' => $cityName,
+                    'city' => $cityName,
+                    'business_category_id' => $categoryId,
+                    'business_category_name' => $categoryName,
+                    'business_category' => $categoryName,
+                    'business_sub_category' => $user?->business_sub_category,
+                    'categories' => $categories,
+                    'membership_status' => $user?->membership_status ?? null,
+                    'is_active' => $user?->is_active ?? null,
                     'profile_photo_file_id' => $photoFileId,
                     'profile_photo_url' => $photoFileId
                         ? url("/api/v1/files/{$photoFileId}")
                         : null,
-                    'designation' => $this->user->designation ?? null,
-                    'company_name' => $this->user->company_name ?? null,
-                    'created_at' => optional($this->user->created_at)->toISOString(),
+                    'designation' => $user?->designation ?? null,
+                    'company_name' => $user?->company_name ?? null,
+                    'created_at' => optional($user?->created_at)->toISOString(),
                 ];
             }),
 
@@ -68,4 +74,81 @@ class CircleMemberResource extends JsonResource
             }),
         ];
     }
+
+    private function resolveCityName($user): ?string
+    {
+        if (! $user) {
+            return null;
+        }
+
+        $cityRelation = $user->relationLoaded('city')
+            ? $user->getRelationValue('city')
+            : ($user->relationLoaded('cityRelation') ? $user->getRelationValue('cityRelation') : null);
+
+        if (is_object($cityRelation)) {
+            return $cityRelation->name ?? null;
+        }
+
+        $city = $user->getAttribute('city');
+
+        if (is_object($city)) {
+            return $city->name ?? null;
+        }
+
+        if (is_string($city) && $city !== '') {
+            return $city;
+        }
+
+        $cityName = $user->getAttribute('city_name');
+
+        return is_string($cityName) && $cityName !== '' ? $cityName : null;
+    }
+
+    private function resolveJoinedCircleCategories($user): array
+    {
+        if (! $user) {
+            return [];
+        }
+
+        if ($user->relationLoaded('joinedCircleCategories')) {
+            $rows = $user->getRelationValue('joinedCircleCategories');
+        } elseif (Schema::hasTable('joined_circle_categories')) {
+            $rows = JoinedCircleCategory::query()
+                ->where('user_id', $user->id)
+                ->with([
+                    'circle:id,name',
+                    'level1Category:id,name',
+                    'level2Category:id,name',
+                    'level3Category:id,name',
+                    'level4Category:id,name',
+                ])
+                ->orderByDesc('updated_at')
+                ->get();
+        } else {
+            return [];
+        }
+
+        return $rows
+            ->map(function (JoinedCircleCategory $row): array {
+                return [
+                    'circle_id' => $row->circle_id,
+                    'circle_name' => $row->circle?->name,
+                    'level1_category' => $row->level1Category
+                        ? ['id' => $row->level1Category->id, 'name' => $row->level1Category->name]
+                        : null,
+                    'level2_category' => $row->level2Category
+                        ? ['id' => $row->level2Category->id, 'name' => $row->level2Category->name]
+                        : null,
+                    'level3_category' => $row->level3Category
+                        ? ['id' => $row->level3Category->id, 'name' => $row->level3Category->name]
+                        : null,
+                    'level4_category' => $row->level4Category
+                        ? ['id' => $row->level4Category->id, 'name' => $row->level4Category->name]
+                        : null,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
 }

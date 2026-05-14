@@ -254,6 +254,10 @@ class EventService
         if ($actor && empty($data['organizer_user_id'])) {
             $data['organizer_user_id'] = $actor->id;
         }
+        if (! empty($data['zoho_form_url'])) {
+            $data['metadata'] = array_merge((array) ($data['metadata'] ?? []), ['zoho_form_url' => $data['zoho_form_url']]);
+        }
+
         if ($withDefaults) {
             $data['event_type'] = $data['event_type'] ?? ($data['circle_id'] ? 'circle_meeting' : 'global_event');
             $data['mode'] = $data['mode'] ?? (($data['is_virtual'] ?? false) ? 'online' : 'offline');

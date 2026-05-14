@@ -19,6 +19,8 @@ class EventOccurrenceListResource extends JsonResource
         $eventService = app(EventService::class);
         $canRegister = $eventService->canRegister($event, $request->user());
         $showOnlineUrl = (bool) $registration || (bool) ($event->is_public ?? false) || $event->visibility === 'public';
+        $zohoFormUrl = $event->zoho_form_url ?? data_get($event->metadata, 'zoho_form_url');
+        $visitorRegistrationEnabled = $eventService->visitorRegistrationEnabled($event);
 
         return [
             'occurrence_id' => $this->id,
@@ -51,7 +53,9 @@ class EventOccurrenceListResource extends JsonResource
             'qr_checkin_enabled' => (bool) $event->qr_checkin_enabled,
             'can_register' => $canRegister['can_register'],
             'can_register_reason' => $canRegister['reason'],
-            'visitor_registration_enabled' => $eventService->visitorRegistrationEnabled($event),
+            'visitor_registration_enabled' => $visitorRegistrationEnabled,
+            'zoho_form_url' => $zohoFormUrl,
+            'visitor_registration_url' => $visitorRegistrationEnabled ? $zohoFormUrl : null,
             'member_registration_enabled' => $eventService->memberRegistrationEnabled($event),
             'user_registration' => [
                 'is_registered' => (bool) $registration,

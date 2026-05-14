@@ -10,6 +10,9 @@ class EventDetailResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        $zohoFormUrl = $this->zoho_form_url ?? data_get($this->metadata, 'zoho_form_url');
+        $visitorRegistrationEnabled = app(EventService::class)->visitorRegistrationEnabled($this->resource);
+
         $event = [
             'id' => $this->id,
             'title' => $this->title,
@@ -39,7 +42,9 @@ class EventDetailResource extends JsonResource
             'registration_limit' => $this->registration_limit,
             'qr_checkin_enabled' => (bool) $this->qr_checkin_enabled,
             'is_public' => (bool) $this->is_public,
-            'visitor_registration_enabled' => app(EventService::class)->visitorRegistrationEnabled($this->resource),
+            'visitor_registration_enabled' => $visitorRegistrationEnabled,
+            'zoho_form_url' => $zohoFormUrl,
+            'visitor_registration_url' => $visitorRegistrationEnabled ? $zohoFormUrl : null,
             'member_registration_enabled' => app(EventService::class)->memberRegistrationEnabled($this->resource),
             'recurrence' => [
                 'type' => $this->recurrence_type,

@@ -116,6 +116,7 @@ class EventManagementController extends Controller
             'city' => $data['city'] ?? null,
             'state' => $data['state'] ?? null,
             'google_maps_url' => $data['google_maps_url'] ?? null,
+            'zoho_form_url' => $data['zoho_form_url'] ?? null,
         ], fn ($value) => filled($value));
 
         $locationParts = array_filter([

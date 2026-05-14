@@ -6,6 +6,7 @@ use App\Models\CircleMember;
 use App\Models\Event;
 use App\Models\EventOccurrence;
 use App\Models\EventRegistration;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -15,7 +16,7 @@ use Illuminate\Support\Facades\Schema;
 class EventService
 {
     private const EVENT_ADMIN_ROLES = [
-        'global_admin', 'admin', 'super_admin', 'super-admin', 'industry_director', 'ded', 'circle_leader',
+        'global_admin', 'super-admin', 'super_admin', 'industry_director', 'ded', 'circle_leader',
         'founder', 'circle_founder', 'circle_director', 'director', 'chair', 'vice_chair', 'secretary',
         'committee_leader', 'leadership_team',
     ];
@@ -121,7 +122,22 @@ class EventService
             return false;
         }
 
-        return $user->roles()->whereIn('key', self::EVENT_ADMIN_ROLES)->exists();
+        $allowedKeys = $this->allowedAdminRoleKeys();
+        if ($allowedKeys === []) {
+            return false;
+        }
+
+        return $user->roles()->whereIn('key', $allowedKeys)->exists();
+    }
+
+    private function allowedAdminRoleKeys(): array
+    {
+        $validRoleKeys = Role::query()
+            ->pluck('key')
+            ->map(fn ($key): string => (string) $key)
+            ->all();
+
+        return array_values(array_intersect(self::EVENT_ADMIN_ROLES, $validRoleKeys));
     }
 
     public function canViewAttendance(Event $event, ?User $user): bool

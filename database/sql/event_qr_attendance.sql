@@ -14,18 +14,27 @@ ALTER TABLE events
 CREATE TABLE IF NOT EXISTS event_occurrences (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    occurrence_date DATE NOT NULL,
     start_at TIMESTAMPTZ NOT NULL,
     end_at TIMESTAMPTZ,
     status VARCHAR(30) NOT NULL DEFAULT 'scheduled',
     sequence INTEGER NOT NULL DEFAULT 1,
+    registration_limit INTEGER,
     metadata JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     deleted_at TIMESTAMPTZ,
-    CONSTRAINT uq_event_occurrence_start UNIQUE (event_id, start_at)
+    CONSTRAINT uq_event_occurrence_date UNIQUE (event_id, occurrence_date)
 );
 
+ALTER TABLE event_occurrences ADD COLUMN IF NOT EXISTS occurrence_date DATE;
+UPDATE event_occurrences SET occurrence_date = start_at::date WHERE occurrence_date IS NULL;
+ALTER TABLE event_occurrences ALTER COLUMN occurrence_date SET NOT NULL;
+ALTER TABLE event_occurrences ADD COLUMN IF NOT EXISTS registration_limit INTEGER;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_event_occurrences_event_date ON event_occurrences(event_id, occurrence_date) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_event_occurrences_event_id ON event_occurrences(event_id);
+CREATE INDEX IF NOT EXISTS idx_event_occurrences_occurrence_date ON event_occurrences(occurrence_date);
 CREATE INDEX IF NOT EXISTS idx_event_occurrences_start_at ON event_occurrences(start_at);
 
 CREATE TABLE IF NOT EXISTS event_registrations (

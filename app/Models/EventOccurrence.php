@@ -21,17 +21,21 @@ class EventOccurrence extends Model
 
     protected $fillable = [
         'event_id',
+        'occurrence_date',
         'start_at',
         'end_at',
         'status',
         'sequence',
+        'registration_limit',
         'metadata',
     ];
 
     protected $casts = [
+        'occurrence_date' => 'date',
         'start_at' => 'datetime',
         'end_at' => 'datetime',
         'sequence' => 'integer',
+        'registration_limit' => 'integer',
         'metadata' => 'array',
     ];
 

@@ -7,49 +7,57 @@ use App\Models\EventOccurrence;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class EventOccurrenceGeneratorService
 {
     public function generate(Event $event): Collection
     {
-        $event->refresh();
-        $starts = $this->buildStarts($event);
-        $durationSeconds = max(0, CarbonImmutable::parse($event->end_at ?? $event->start_at)->diffInSeconds(CarbonImmutable::parse($event->start_at), true));
-        $created = collect();
-        $sequence = (int) $event->occurrences()->withTrashed()->max('sequence');
+        return DB::transaction(function () use ($event): Collection {
+            $event->refresh();
+            $starts = $this->buildStarts($event);
+            $durationSeconds = max(0, CarbonImmutable::parse($event->end_at ?? $event->start_at)->diffInSeconds(CarbonImmutable::parse($event->start_at), true));
+            $created = collect();
+            $sequence = (int) $event->occurrences()->withTrashed()->max('sequence');
 
-        foreach ($starts as $start) {
-            $end = $durationSeconds > 0 ? $start->addSeconds($durationSeconds) : null;
-            $exists = $event->occurrences()
-                ->withTrashed()
-                ->where('start_at', $start)
-                ->exists();
+            foreach ($starts as $occurrenceStart) {
+                $occurrenceEnd = $durationSeconds > 0 ? $occurrenceStart->addSeconds($durationSeconds) : null;
+                $occurrenceDate = $occurrenceStart->toDateString();
+                $exists = $event->occurrences()
+                    ->withTrashed()
+                    ->where('occurrence_date', $occurrenceDate)
+                    ->exists();
 
-            if ($exists) {
-                continue;
+                if ($exists) {
+                    continue;
+                }
+
+                $sequence++;
+                $created->push(EventOccurrence::query()->create([
+                    'event_id' => $event->id,
+                    'sequence' => $sequence,
+                    'occurrence_date' => $occurrenceDate,
+                    'start_at' => $occurrenceStart,
+                    'end_at' => $occurrenceEnd,
+                    'status' => 'scheduled',
+                    'registration_limit' => $event->registration_limit,
+                ]));
             }
 
-            $sequence++;
-            $created->push(EventOccurrence::query()->create([
-                'event_id' => $event->id,
-                'start_at' => $start,
-                'end_at' => $end,
-                'status' => 'scheduled',
-                'sequence' => $sequence,
-            ]));
-        }
-
-        return $created;
+            return $created;
+        });
     }
 
     public function regenerateFuture(Event $event): Collection
     {
-        $event->occurrences()
-            ->where('start_at', '>=', now())
-            ->whereDoesntHave('registrations')
-            ->delete();
+        return DB::transaction(function () use ($event): Collection {
+            $event->occurrences()
+                ->where('start_at', '>=', now())
+                ->whereDoesntHave('registrations')
+                ->delete();
 
-        return $this->generate($event);
+            return $this->generate($event);
+        });
     }
 
     private function buildStarts(Event $event): array

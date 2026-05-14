@@ -8,6 +8,7 @@ use App\Models\CircleCategoryLevel3;
 use App\Models\CircleCategoryLevel4;
 use App\Models\CircleMemberCategorySelection;
 use App\Models\User;
+use App\Services\ProfileMatchService;
 use Illuminate\Support\Collection;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Schema;
@@ -136,9 +137,51 @@ class UserResource extends JsonResource
             'last_login_at'       => $this->last_login_at,
             'created_at'          => $this->created_at,
             'updated_at'          => $this->updated_at,
+            'profile_match'       => $this->when(
+                $request->attributes->get('profile_match_enabled', false),
+                fn () => $this->resolveProfileMatch($request)
+            ),
         ];
     }
 
+    private function resolveProfileMatch($request): ?array
+    {
+        if (! $request->attributes->get('profile_match_enabled', false)) {
+            return null;
+        }
+
+        $authUser = $request->attributes->get('profile_match_auth_user')
+            ?? $request->user('sanctum')
+            ?? $request->user();
+
+        if (! $authUser instanceof User) {
+            return null;
+        }
+
+        $precomputed = $this->resource->getAttribute('profile_match');
+        if (is_array($precomputed)) {
+            return $this->publicProfileMatch($precomputed);
+        }
+
+        $profileMatchService = $request->attributes->get('profile_match_service');
+        if (! $profileMatchService instanceof ProfileMatchService) {
+            $profileMatchService = app(ProfileMatchService::class);
+        }
+
+        $profileMatch = $profileMatchService->calculate($authUser, $this->resource);
+
+        return is_array($profileMatch) ? $this->publicProfileMatch($profileMatch) : null;
+    }
+
+    private function publicProfileMatch(array $profileMatch): array
+    {
+        return [
+            'score' => $profileMatch['score'] ?? 0,
+            'percentage' => $profileMatch['percentage'] ?? 0,
+            'level' => $profileMatch['level'] ?? null,
+            'matched_fields' => $profileMatch['matched_fields'] ?? [],
+        ];
+    }
 
     private function resolveProfileVideoUrl(): ?string
     {

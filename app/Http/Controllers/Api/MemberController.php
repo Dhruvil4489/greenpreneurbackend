@@ -10,13 +10,15 @@ use App\Models\User;
 use App\Models\UserFollow;
 use App\Services\Blocks\PeerBlockService;
 use App\Services\Notifications\NotifyUserService;
+use App\Services\ProfileMatchService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 
 class MemberController extends BaseApiController
 {
-    public function index(Request $request, PeerBlockService $peerBlockService)
+    public function index(Request $request, PeerBlockService $peerBlockService, ProfileMatchService $profileMatchService)
     {
         $selectColumns = [
             'id',
@@ -39,9 +41,54 @@ class MemberController extends BaseApiController
             'business_type',
         ];
 
-        if (Schema::hasColumn('users', 'profile_video_id')) {
-            $selectColumns[] = 'profile_video_id';
+        $profileMatchColumns = [
+            'city_of_residence',
+            'state',
+            'country',
+            'business_city',
+            'business_state',
+            'business_country',
+            'business_pincode',
+            'main_business_category_id',
+            'business_category_id',
+            'business_sub_category',
+            'company_type',
+            'year_of_establishment',
+            'annual_revenue_range',
+            'number_of_employees',
+            'products_services_offered',
+            'business_keywords',
+            'designation',
+            'experience_years',
+            'experience_summary',
+            'skills',
+            'industries_of_interest',
+            'interests',
+            'collaboration_goals',
+            'i_can_help_with',
+            'i_am_looking_for',
+            'superpower',
+            'preferred_language',
+            'preferred_meeting_format',
+            'willing_to_mentor',
+            'open_to_cross_city_collaboration',
+            'open_to_speaking_at_events',
+            'business_website',
+            'linkedin_profile',
+            'instagram_handle',
+            'facebook_profile',
+            'youtube_channel',
+            'cover_photo_file_id',
+            'profile_video_id',
+        ];
+
+        foreach ($profileMatchColumns as $column) {
+            if (Schema::hasColumn('users', $column)) {
+                $selectColumns[] = $column;
+            }
         }
+
+        $selectColumns = array_values(array_unique($selectColumns));
 
         $query = User::query()
             ->select($selectColumns)
@@ -60,13 +107,22 @@ class MemberController extends BaseApiController
         });
 
 
-        $excludedUserIds = array_values(array_unique(array_filter(array_merge(
-            $peerBlockService->blockedUserIdsFor((string) $request->user()->id),
-            $peerBlockService->usersWhoBlockedMeIdsFor((string) $request->user()->id)
-        ))));
+        $authUser = auth('sanctum')->user();
 
-        if (! empty($excludedUserIds)) {
-            $query->whereNotIn('id', $excludedUserIds);
+        if ($authUser) {
+            $authUser->loadMissing([
+                'city:id,name',
+                'circleMemberships' => fn ($query) => $this->joinedCircleMembershipsQuery($query),
+            ]);
+
+            $excludedUserIds = array_values(array_unique(array_filter(array_merge(
+                $peerBlockService->blockedUserIdsFor((string) $authUser->id),
+                $peerBlockService->usersWhoBlockedMeIdsFor((string) $authUser->id)
+            ))));
+
+            if (! empty($excludedUserIds)) {
+                $query->whereNotIn('id', $excludedUserIds);
+            }
         }
 
         if ($search = trim((string) $request->input('q', ''))) {
@@ -99,18 +155,76 @@ class MemberController extends BaseApiController
             $query->where('business_type', $request->input('business_type'));
         }
 
-        $authBusinessType = $request->user()->business_type;
+        if ($authUser && filled($authUser->business_type)) {
+            $query->orderByRaw(
+                'CASE WHEN business_type = ? THEN 0 ELSE 1 END',
+                [$authUser->business_type]
+            );
+        }
 
-        $query->orderByRaw(
-            'CASE WHEN business_type = ? THEN 0 ELSE 1 END',
-            [$authBusinessType]
-        )->orderByDesc('created_at');
+        $query->orderByDesc('created_at');
+
+        $request->attributes->set('profile_match_enabled', true);
+        $request->attributes->set('profile_match_auth_user', $authUser);
+        $request->attributes->set('profile_match_service', $profileMatchService);
+
+        $members = $query->get();
+
+        if ($authUser) {
+            $members = $this->applyProfileMatchOrdering($members, $authUser, $profileMatchService, $selectColumns);
+        }
 
         $data = [
-            'items' => UserResource::collection($query->get()),
+            'items' => UserResource::collection($members),
         ];
 
         return $this->success($data);
+    }
+
+
+    private function applyProfileMatchOrdering(Collection $members, User $authUser, ProfileMatchService $profileMatchService, array $selectColumns): Collection
+    {
+        $authUserId = (string) $authUser->id;
+
+        if (! $members->contains(fn (User $member): bool => (string) $member->id === $authUserId)) {
+            $self = User::query()
+                ->select($selectColumns)
+                ->with([
+                    'city:id,name',
+                    'circleMemberships' => fn ($query) => $this->joinedCircleMembershipsQuery($query),
+                ])
+                ->withCount([
+                    'followers as followers_count',
+                    'following as following_count',
+                ])
+                ->find($authUserId);
+
+            if ($self) {
+                $members->push($self);
+            }
+        }
+
+        return $members
+            ->map(function (User $member) use ($authUser, $profileMatchService): User {
+                $member->setAttribute('profile_match', $profileMatchService->calculate($authUser, $member));
+
+                return $member;
+            })
+            ->sort(function (User $a, User $b) use ($authUserId): int {
+                if ((string) $a->id === $authUserId) {
+                    return -1;
+                }
+
+                if ((string) $b->id === $authUserId) {
+                    return 1;
+                }
+
+                $aScore = (int) data_get($a->getAttribute('profile_match'), 'percentage', 0);
+                $bScore = (int) data_get($b->getAttribute('profile_match'), 'percentage', 0);
+
+                return $bScore <=> $aScore;
+            })
+            ->values();
     }
 
     public function names(Request $request, PeerBlockService $peerBlockService)

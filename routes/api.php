@@ -55,6 +55,7 @@ use App\Http\Controllers\Api\V1\Admin\AppVersionController as AdminAppVersionCon
 use App\Http\Controllers\Api\V1\Admin\AdminOpsController;
 use App\Http\Controllers\Api\V1\Admin\CircleManagementController;
 use App\Http\Controllers\Api\V1\Admin\DashboardController;
+use App\Http\Controllers\Api\V1\Admin\EventAdminController;
 use App\Http\Controllers\Api\V1\Admin\ImpactAdminController;
 use App\Http\Controllers\Api\V1\Admin\IndustryManagementController;
 use App\Http\Controllers\Api\V1\Admin\LeadershipController;
@@ -92,6 +93,7 @@ use App\Http\Controllers\Api\V1\UserActivitySummaryController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoDebugController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoPlansController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoWebhookController;
+use App\Http\Controllers\Api\V1\Zoho\ZohoEventFormWebhookController;
 use App\Http\Controllers\Api\WalletController;
 use Illuminate\Support\Facades\Route;
 
@@ -129,6 +131,8 @@ Route::prefix('v1')->group(function () {
     Route::get('/members-with-circles', [MemberWithCircleController::class, 'index'])->middleware('fixed.members.token');
     Route::get('/members-with-circles/{identifier}', [MemberWithCircleController::class, 'show'])->middleware('fixed.members.token');
 
+    Route::post('/events/{event_id}/occurrences/{occurrence_id}/visitor-register', [EventController::class, 'visitorRegister'])->whereUuid('event_id')->whereUuid('occurrence_id');
+    Route::post('/zoho/events/form-webhook', ZohoEventFormWebhookController::class);
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/membership-summary', [MembershipSummaryController::class, 'show']);
@@ -314,11 +318,11 @@ Route::prefix('v1')->group(function () {
             Route::put('/coin-rules/{id}', [AdminOpsController::class, 'coinRulesUpdate']);
             Route::delete('/coin-rules/{id}', [AdminOpsController::class, 'coinRulesDelete']);
 
-            Route::get('/events', [AdminOpsController::class, 'events']);
-            Route::post('/events', [AdminOpsController::class, 'eventStore']);
-            Route::get('/events/{id}', [AdminOpsController::class, 'eventShow'])->whereUuid('id');
-            Route::put('/events/{id}', [AdminOpsController::class, 'eventUpdate'])->whereUuid('id');
-            Route::delete('/events/{id}', [AdminOpsController::class, 'eventDelete'])->whereUuid('id');
+            Route::get('/events', [EventAdminController::class, 'index']);
+            Route::post('/events', [EventAdminController::class, 'store']);
+            Route::get('/events/{id}', [EventAdminController::class, 'show'])->whereUuid('id');
+            Route::put('/events/{id}', [EventAdminController::class, 'update'])->whereUuid('id');
+            Route::delete('/events/{id}', [EventAdminController::class, 'destroy'])->whereUuid('id');
             Route::get('/events/{id}/registrations', [AdminOpsController::class, 'eventRegistrations'])->whereUuid('id');
             Route::get('/events/{id}/attendees', [AdminOpsController::class, 'eventAttendees'])->whereUuid('id');
             Route::post('/events/{id}/speakers', [AdminOpsController::class, 'eventSpeakerStore'])->whereUuid('id');
@@ -433,10 +437,16 @@ Route::prefix('v1')->group(function () {
 
         // Events
         Route::get('/events', [EventController::class, 'index']);
-        Route::get('/events/{id}', [EventController::class, 'show']);
+        Route::get('/events/my-registrations', [EventController::class, 'myRegistrations']);
+        Route::post('/events/checkin/scan', [EventController::class, 'scan']);
+        Route::get('/events/checkin/qr/{qr_token}', [EventController::class, 'checkinQr']);
+        Route::get('/events/registrations/{registration_id}/qr', [EventController::class, 'qr'])->whereUuid('registration_id');
+        Route::get('/events/{event_id}/attendance', [EventController::class, 'attendance'])->whereUuid('event_id');
+        Route::post('/events/{event_id}/occurrences/{occurrence_id}/register', [EventController::class, 'register'])->whereUuid('event_id')->whereUuid('occurrence_id');
+        Route::get('/events/{id}', [EventController::class, 'show'])->whereUuid('id');
         Route::post('/events', [EventController::class, 'store']);
-        Route::post('/events/{id}/rsvp', [EventController::class, 'rsvp']);
-        Route::post('/events/{id}/checkin', [EventController::class, 'checkin']);
+        Route::post('/events/{id}/rsvp', [EventController::class, 'rsvp'])->whereUuid('id');
+        Route::post('/events/{id}/checkin', [EventController::class, 'checkin'])->whereUuid('id');
 
         // User Activities & Coins
         Route::post('/activities', [ActivityController::class, 'store']);

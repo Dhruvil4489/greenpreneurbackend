@@ -3,8 +3,6 @@
 namespace App\Services\Events;
 
 use App\Models\EventRegistration;
-use Illuminate\Support\Arr;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -59,15 +57,10 @@ class EventRegistrationPaymentSyncService
 
     private function resolveRegistration(array $payload): ?EventRegistration
     {
-        $registrationId = $this->extractRegistrationId($payload);
-        if ($registrationId && Str::isUuid((string) $registrationId)) {
-            $registration = EventRegistration::query()->find($registrationId);
-            if ($registration) {
-                return $registration;
-            }
-        }
-
-        $hostedPageId = $this->firstValue($payload, ['hostedpage.hostedpage_id', 'hosted_page.hostedpage_id', 'hostedpage_id', 'hosted_page_id', 'data.hostedpage.hostedpage_id']);
+        $hostedPageId = $this->firstValue($payload, [
+            'hostedpage.hostedpage_id', 'hosted_page.hostedpage_id', 'hostedpage_id', 'hosted_page_id', 'data.hostedpage.hostedpage_id',
+            'payment.invoices.0.hosted_page_id', 'data.payment.invoices.0.hosted_page_id', 'customerpayment.hostedpage_id', 'data.customerpayment.hostedpage_id',
+        ]);
         if ($hostedPageId && Schema::hasColumn('event_registrations', 'zoho_hosted_page_id')) {
             $registration = EventRegistration::query()->where('zoho_hosted_page_id', $hostedPageId)->first();
             if ($registration) {
@@ -75,42 +68,62 @@ class EventRegistrationPaymentSyncService
             }
         }
 
-        $invoiceId = $this->firstValue($payload, ['invoice.invoice_id', 'data.invoice.invoice_id', 'invoice_id']);
+        $invoiceId = $this->firstValue($payload, [
+            'invoice.invoice_id', 'data.invoice.invoice_id', 'invoice_id', 'data.invoice_id',
+            'payment.invoices.0.invoice_id', 'data.payment.invoices.0.invoice_id', 'customerpayment.invoices.0.invoice_id',
+        ]);
         if ($invoiceId && Schema::hasColumn('event_registrations', 'zoho_invoice_id')) {
-            return EventRegistration::query()->where('zoho_invoice_id', $invoiceId)->first();
+            $registration = EventRegistration::query()->where('zoho_invoice_id', $invoiceId)->first();
+            if ($registration) {
+                return $registration;
+            }
         }
 
-        return null;
+        return $this->resolveLatestPendingRegistration($payload);
     }
 
-    private function extractRegistrationId(array $payload): ?string
+    private function resolveLatestPendingRegistration(array $payload): ?EventRegistration
     {
-        $direct = $this->firstValue($payload, [
-            'registration_id',
-            'event_registration_id',
-            'metadata.registration_id',
-            'data.metadata.registration_id',
-            'custom_fields.registration_id',
-            'invoice.reference_number',
-            'data.invoice.reference_number',
+        $customerId = $this->firstValue($payload, [
+            'customer.customer_id', 'data.customer.customer_id', 'customer_id', 'data.customer_id',
+            'invoice.customer_id', 'data.invoice.customer_id', 'payment.customer_id', 'data.payment.customer_id',
+            'customerpayment.customer_id', 'data.customerpayment.customer_id',
         ]);
-        if ($direct) {
-            return (string) $direct;
+        $email = $this->firstValue($payload, [
+            'customer.email', 'data.customer.email', 'email', 'data.email',
+            'invoice.email', 'data.invoice.email', 'payment.email', 'data.payment.email',
+            'customerpayment.email', 'data.customerpayment.email',
+        ]);
+        $amount = $this->firstValue($payload, [
+            'invoice.total', 'data.invoice.total', 'invoice.amount', 'data.invoice.amount',
+            'payment.amount', 'data.payment.amount', 'customerpayment.amount', 'data.customerpayment.amount',
+            'amount', 'data.amount', 'total', 'data.total',
+        ]);
+
+        $query = EventRegistration::query()
+            ->with('user')
+            ->where('payment_required', true)
+            ->where('payment_status', 'pending')
+            ->where('status', 'pending_payment')
+            ->whereNull('deleted_at');
+
+        if ($customerId && Schema::hasColumn('event_registrations', 'zoho_customer_id')) {
+            $query->where('zoho_customer_id', (string) $customerId);
+        } elseif ($email) {
+            $email = strtolower((string) $email);
+            $query->where(function ($inner) use ($email): void {
+                $inner->whereRaw("LOWER(COALESCE(visitor_email, '')) = ?", [$email])
+                    ->orWhereHas('user', fn ($userQuery) => $userQuery->whereRaw("LOWER(COALESCE(email, '')) = ?", [$email]));
+            });
+        } else {
+            return null;
         }
 
-        foreach (Arr::dot($payload) as $key => $value) {
-            if (str_contains((string) $key, 'registration_id') && is_scalar($value) && (string) $value !== '') {
-                return (string) $value;
-            }
+        if (is_numeric($amount)) {
+            $query->where('amount', round((float) $amount, 2));
         }
 
-        foreach (Arr::dot($payload) as $value) {
-            if (is_string($value) && preg_match('/event_registration[:=]([0-9a-fA-F-]{36})/', $value, $matches)) {
-                return $matches[1];
-            }
-        }
-
-        return null;
+        return $query->latest('registered_at')->first();
     }
 
     private function resolvePaymentStatus(array $payload): string

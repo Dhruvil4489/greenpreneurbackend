@@ -417,8 +417,6 @@ class ZohoBillingService
         $eventTitle = trim((string) ($eventPayment['event_title'] ?? 'Unity Event'));
         $description = trim((string) ($eventPayment['event_description'] ?? ''));
         $occurrenceStartAt = trim((string) ($eventPayment['occurrence_start_at'] ?? ''));
-        $metadata = (array) ($eventPayment['metadata'] ?? []);
-
         if ($registrationId === '' || $amount <= 0) {
             throw new RuntimeException('Invalid event registration checkout payload.');
         }
@@ -429,20 +427,13 @@ class ZohoBillingService
             'due_date' => now()->toDateString(),
             'payment_terms' => 0,
             'currency_code' => $currency,
-            'reference_number' => $registrationId,
             'invoice_items' => [[
                 'name' => 'Event Registration - '.$eventTitle,
                 'description' => trim($description.' '.($occurrenceStartAt !== '' ? 'Event date: '.$occurrenceStartAt : '')),
                 'price' => $amount,
                 'quantity' => 1,
             ]],
-            'notes' => 'Unity event registration. event_registration:'.$registrationId,
-            'custom_fields' => [
-                ['label' => 'type', 'value' => 'event_registration'],
-                ['label' => 'registration_id', 'value' => $registrationId],
-                ['label' => 'event_id', 'value' => (string) ($metadata['event_id'] ?? '')],
-                ['label' => 'occurrence_id', 'value' => (string) ($metadata['occurrence_id'] ?? '')],
-            ],
+            'notes' => 'Unity event registration checkout.',
         ];
 
         Log::info('event invoice request payload', [

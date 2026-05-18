@@ -305,7 +305,13 @@ class CampaignRecipientResolverService
             return [];
         }
 
-        return User::query()->whereNotNull($column)->where($column, '!=', '')->distinct()->orderBy($column)->pluck($column)->values()->all();
+        $query = User::query()->whereNotNull($column);
+
+        if ($column !== 'membership_status') {
+            $query->where($column, '!=', '');
+        }
+
+        return $query->distinct()->orderBy($column)->pluck($column)->values()->all();
     }
 
     private function categories(): array

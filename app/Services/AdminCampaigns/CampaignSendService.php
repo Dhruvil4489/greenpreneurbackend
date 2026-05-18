@@ -2,6 +2,8 @@
 
 namespace App\Services\AdminCampaigns;
 
+use App\Events\UserNotificationCreated;
+use App\Jobs\SendPushNotificationJob;
 use App\Mail\AdminCampaignMailable;
 use App\Models\AdminCampaign;
 use App\Models\AdminCampaignRecipient;
@@ -9,6 +11,7 @@ use App\Models\Notification;
 use App\Models\User;
 use App\Services\EmailLogs\EmailLogService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -114,13 +117,38 @@ class CampaignSendService
                 $stats['notification_sent']++;
             } else {
                 try {
-                    Notification::query()->create($this->notificationRow($campaign, $user));
+                    $notification = $this->findExistingCampaignNotification($campaign, $user)
+                        ?? Notification::query()->create($this->notificationRow($campaign, $user));
+
+                    if (! $notification->wasRecentlyCreated) {
+                        Log::info('Admin campaign notification already exists', [
+                            'campaign_id' => (string) $campaign->id,
+                            'user_id' => (string) $user->id,
+                            'notification_id' => (string) $notification->id,
+                        ]);
+                    } else {
+                        $this->dispatchNotificationDelivery($campaign, $user, $notification);
+
+                        Log::info('Admin campaign notification created', [
+                            'campaign_id' => (string) $campaign->id,
+                            'user_id' => (string) $user->id,
+                            'notification_id' => (string) $notification->id,
+                        ]);
+                    }
+
                     $notificationSent = true;
                     $notificationStatus = 'sent';
                     $stats['notification_sent']++;
                 } catch (Throwable $exception) {
+                    $notificationSent = false;
                     $notificationStatus = 'failed';
                     $errors[] = $exception->getMessage();
+
+                    Log::error('Admin campaign notification failed', [
+                        'campaign_id' => (string) $campaign->id,
+                        'user_id' => (string) $user->id,
+                        'error' => $exception->getMessage(),
+                    ]);
                 }
             }
         }
@@ -172,7 +200,7 @@ class CampaignSendService
                 ->map(fn ($type) => (string) $type)
                 ->all();
 
-            foreach (['general', 'system', 'activity_update'] as $type) {
+            foreach (['general', 'activity_update', 'system'] as $type) {
                 if (in_array($type, $allowedTypes, true)) {
                     return $this->notificationType = $type;
                 }
@@ -184,35 +212,133 @@ class CampaignSendService
         return $this->notificationType = 'system';
     }
 
+    private function findExistingCampaignNotification(AdminCampaign $campaign, User $user): ?Notification
+    {
+        $query = Notification::query()->where('user_id', $user->id);
+
+        if ($this->notificationColumnExists('source_type') && $this->notificationColumnExists('source_id') && $this->notificationColumnExists('source_event')) {
+            $sourceMatch = (clone $query)
+                ->where('source_type', 'admin_campaign')
+                ->where('source_id', $campaign->id)
+                ->where('source_event', 'campaign_send')
+                ->first();
+
+            if ($sourceMatch) {
+                return $sourceMatch;
+            }
+        }
+
+        return $query
+            ->where('payload->notification_type', 'admin_campaign')
+            ->where('payload->campaign_id', (string) $campaign->id)
+            ->first();
+    }
+
+    private function dispatchNotificationDelivery(AdminCampaign $campaign, User $user, Notification $notification): void
+    {
+        $title = $this->notificationTitle($campaign);
+        $message = $this->notificationMessage($campaign);
+        $payload = $notification->payload ?? [];
+        $pushData = [
+            'type' => 'admin_campaign',
+            'notification_type' => 'admin_campaign',
+            'notification_id' => (string) $notification->id,
+            'campaign_id' => (string) $campaign->id,
+            'campaign_title' => (string) $campaign->title,
+            'pamphlet_id' => $campaign->pamphlet_id ? (string) $campaign->pamphlet_id : null,
+            'pamphlet_image_url' => $this->pamphletImageUrl($campaign),
+        ];
+
+        try {
+            event(new UserNotificationCreated((string) $user->id, [
+                'id' => (string) $notification->id,
+                'title' => $title,
+                'body' => $message,
+                'type' => 'admin_campaign',
+                'payload' => $payload,
+                'is_read' => false,
+                'created_at' => $notification->created_at,
+            ]));
+
+            SendPushNotificationJob::dispatch($user, $title, $message, $pushData);
+        } catch (Throwable $exception) {
+            Log::error('Admin campaign notification delivery dispatch failed', [
+                'campaign_id' => (string) $campaign->id,
+                'user_id' => (string) $user->id,
+                'notification_id' => (string) $notification->id,
+                'error' => $exception->getMessage(),
+            ]);
+        }
+    }
+
     private function notificationRow(AdminCampaign $campaign, User $user): array
     {
+        $payload = $this->notificationPayload($campaign, $user);
         $row = [
             'user_id' => $user->id,
             'type' => $this->resolveNotificationType(),
-            'payload' => [
-                'notification_type' => 'admin_campaign',
-                'title' => $campaign->notification_title,
-                'body' => $campaign->notification_message,
-                'campaign_id' => $campaign->id,
-                'pamphlet_id' => $campaign->pamphlet_id,
-                'pamphlet_image_url' => $campaign->pamphlet_snapshot['image_url'] ?? null,
-                'data' => [
-                    'campaign_id' => $campaign->id,
-                    'pamphlet_id' => $campaign->pamphlet_id,
-                    'pamphlet_image_url' => $campaign->pamphlet_snapshot['image_url'] ?? null,
-                ],
-            ],
+            'payload' => $payload,
             'is_read' => false,
             'created_at' => now(),
             'read_at' => null,
         ];
 
-        foreach (['title' => $campaign->notification_title, 'message' => $campaign->notification_message, 'source_type' => 'admin_campaign', 'source_id' => $campaign->id, 'source_event' => 'campaign_send'] as $column => $value) {
-            if (Schema::hasColumn('notifications', $column)) {
+        foreach ([
+            'title' => $this->notificationTitle($campaign),
+            'message' => $this->notificationMessage($campaign),
+            'data' => $payload,
+            'source_type' => 'admin_campaign',
+            'source_id' => (string) $campaign->id,
+            'source_event' => 'campaign_send',
+        ] as $column => $value) {
+            if ($this->notificationColumnExists($column)) {
                 $row[$column] = $value;
             }
         }
 
         return $row;
+    }
+
+    private function notificationPayload(AdminCampaign $campaign, User $user): array
+    {
+        $campaignData = [
+            'notification_type' => 'admin_campaign',
+            'campaign_id' => (string) $campaign->id,
+            'campaign_title' => (string) $campaign->title,
+            'pamphlet_id' => $campaign->pamphlet_id ? (string) $campaign->pamphlet_id : null,
+            'pamphlet_image_url' => $this->pamphletImageUrl($campaign),
+        ];
+
+        return [
+            ...$campaignData,
+            'title' => $this->notificationTitle($campaign),
+            'body' => $this->notificationMessage($campaign),
+            'to_user_id' => (string) $user->id,
+            'data' => $campaignData,
+            'notifiable_type' => AdminCampaign::class,
+            'notifiable_id' => (string) $campaign->id,
+        ];
+    }
+
+    private function notificationTitle(AdminCampaign $campaign): string
+    {
+        return (string) ($campaign->notification_title ?: $campaign->title ?: 'New notification');
+    }
+
+    private function notificationMessage(AdminCampaign $campaign): string
+    {
+        return (string) ($campaign->notification_message ?: 'You have a new notification.');
+    }
+
+    private function pamphletImageUrl(AdminCampaign $campaign): ?string
+    {
+        $imageUrl = $campaign->pamphlet_snapshot['image_url'] ?? null;
+
+        return is_string($imageUrl) && $imageUrl !== '' ? $imageUrl : null;
+    }
+
+    private function notificationColumnExists(string $column): bool
+    {
+        return Schema::hasColumn('notifications', $column);
     }
 }

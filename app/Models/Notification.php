@@ -20,6 +20,7 @@ class Notification extends Model
         'user_id',
         'type',
         'payload',
+        'data',
         'title',
         'message',
         'source_type',
@@ -32,6 +33,7 @@ class Notification extends Model
 
     protected $casts = [
         'payload' => 'array',
+        'data' => 'array',
         'is_read' => 'boolean',
         'created_at' => 'datetime',
         'read_at' => 'datetime',

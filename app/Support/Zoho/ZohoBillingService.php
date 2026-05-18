@@ -351,6 +351,125 @@ class ZohoBillingService
         return $customerId;
     }
 
+
+    public function ensureCustomerForContact(array $contact): string
+    {
+        $email = trim((string) ($contact['email'] ?? ''));
+        $phone = trim((string) ($contact['phone'] ?? ''));
+        $name = trim((string) ($contact['name'] ?? ''));
+        $company = trim((string) ($contact['company'] ?? ''));
+        $city = trim((string) ($contact['city'] ?? ''));
+
+        if ($email === '') {
+            throw ValidationException::withMessages(['visitor_email' => 'Email is required for Zoho checkout.']);
+        }
+
+        if ($phone === '') {
+            throw ValidationException::withMessages(['visitor_phone' => 'Phone is required for Zoho checkout.']);
+        }
+
+        $existingCustomerId = $this->findCustomerByEmail($email);
+        if ($existingCustomerId !== null) {
+            return (string) $existingCustomerId;
+        }
+
+        $payload = [
+            'display_name' => $name !== '' ? $name : ($company !== '' ? $company : $email),
+            'company_name' => $company,
+            'email' => $email,
+            'mobile' => $phone,
+            'phone' => $phone,
+            'is_portal_enabled' => true,
+            'contact_persons' => [[
+                'first_name' => $name !== '' ? $name : 'Unity',
+                'last_name' => '',
+                'email' => $email,
+                'phone' => $phone,
+                'mobile' => $phone,
+                'is_primary_contact' => true,
+            ]],
+            'billing_address' => [
+                'city' => $city,
+                'state' => '',
+            ],
+        ];
+
+        $response = $this->client->request('POST', '/customers', $payload);
+        $customerId = (string) ($response['customer']['customer_id'] ?? '');
+
+        if ($customerId === '') {
+            throw new RuntimeException('Unable to create Zoho customer.');
+        }
+
+        return $customerId;
+    }
+
+    public function createInvoiceForEventRegistration(array $customer, array $eventInvoice): array
+    {
+        $user = $customer['user'] ?? null;
+        $customerId = $user instanceof User
+            ? $this->ensureCustomerForUser($user)
+            : $this->ensureCustomerForContact($customer);
+
+        $registrationId = (string) ($eventInvoice['registration_id'] ?? '');
+        $amount = round((float) ($eventInvoice['amount'] ?? 0), 2);
+        $currency = strtoupper((string) ($eventInvoice['currency'] ?? 'INR'));
+        $eventTitle = trim((string) ($eventInvoice['event_title'] ?? 'Unity Event'));
+        $description = trim((string) ($eventInvoice['description'] ?? $eventTitle));
+
+        if ($registrationId === '' || $amount <= 0) {
+            throw new RuntimeException('Invalid event registration invoice payload.');
+        }
+
+        $payload = [
+            'customer_id' => $customerId,
+            'date' => now()->toDateString(),
+            'due_date' => now()->toDateString(),
+            'payment_terms' => 0,
+            'currency_code' => $currency,
+            'reference_number' => $registrationId,
+            'invoice_items' => [[
+                'name' => 'Event Registration - '.$eventTitle,
+                'description' => $description,
+                'rate' => $amount,
+                'price' => $amount,
+                'quantity' => 1,
+            ]],
+            'notes' => 'Razorpay paid event registration: '.$registrationId,
+        ];
+
+        Log::info('event zoho invoice request payload', [
+            'event_registration_id' => $registrationId,
+            'customer_id' => $customerId,
+            'payload_keys' => array_keys($payload),
+            'amount' => $amount,
+            'currency' => $currency,
+        ]);
+
+        $response = $this->client->request('POST', '/invoices', $payload);
+        $invoice = is_array($response['invoice'] ?? null) ? $response['invoice'] : $response;
+
+        Log::info('event zoho invoice response shape', [
+            'event_registration_id' => $registrationId,
+            'response_keys' => array_keys($response),
+            'invoice_keys' => is_array($invoice) ? array_keys($invoice) : [],
+        ]);
+
+        $invoiceId = (string) data_get($invoice, 'invoice_id', '');
+        if ($invoiceId === '') {
+            throw new RuntimeException('Unable to create Zoho invoice for event registration.');
+        }
+
+        return [
+            'customer_id' => $customerId,
+            'invoice_id' => $invoiceId,
+            'invoice_number' => (string) (data_get($invoice, 'invoice_number') ?? data_get($invoice, 'number') ?? ''),
+            'invoice_url' => data_get($invoice, 'invoice_url') ?? data_get($invoice, 'url'),
+            'invoice_pdf_url' => data_get($invoice, 'invoice_pdf_url') ?? data_get($invoice, 'pdf_url'),
+            'raw' => $response,
+        ];
+    }
+
     public function createHostedPageForSubscription(User $user, string $planCode): array
     {
         $customerId = $this->ensureCustomerForUser($user);

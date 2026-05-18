@@ -21,9 +21,11 @@ class ZohoBillingClient
         $request = Http::timeout(config('zoho_billing.http_timeout', 20))
             ->retry(config('zoho_billing.http_retry_times', 2), config('zoho_billing.http_retry_sleep_ms', 200))
             ->acceptJson()
+            ->asJson()
             ->withHeaders([
                 'Authorization' => 'Zoho-oauthtoken ' . $token,
                 'X-com-zoho-subscriptions-organizationid' => (string) config('zoho_billing.org_id'),
+                'Content-Type' => 'application/json',
             ]);
 
         Log::info('Zoho Billing request', [
@@ -99,6 +101,7 @@ class ZohoBillingClient
             ->withHeaders([
                 'Authorization' => 'Zoho-oauthtoken ' . $token,
                 'X-com-zoho-subscriptions-organizationid' => (string) config('zoho_billing.org_id'),
+                'Content-Type' => 'application/json',
                 'Accept' => 'application/pdf',
             ])
             ->get($url, $query);

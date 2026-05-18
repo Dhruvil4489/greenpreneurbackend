@@ -40,6 +40,7 @@ class ZohoBillingWebhookController extends Controller
         }
 
         $payload = $request->all();
+
         $subscriptionId = data_get($payload, 'subscription.subscription_id')
             ?? data_get($payload, 'data.subscription.subscription_id')
             ?? data_get($payload, 'subscription_id');

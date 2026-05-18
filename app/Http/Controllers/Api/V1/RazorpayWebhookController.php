@@ -3,18 +3,24 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\EventRegistration;
 use App\Models\MembershipPlan;
 use App\Models\Payment;
 use App\Models\User;
+use App\Services\Events\EventRazorpayPaymentFinalizer;
 use App\Services\MembershipService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class RazorpayWebhookController extends Controller
 {
-    public function __construct(private readonly MembershipService $membershipService)
+    public function __construct(
+        private readonly MembershipService $membershipService,
+        private readonly EventRazorpayPaymentFinalizer $eventPaymentFinalizer,
+    )
     {
     }
 
@@ -58,6 +64,12 @@ class RazorpayWebhookController extends Controller
         return response()->json(['ok' => true]);
     }
 
+
+    private function filterEventRegistrationColumns(array $data): array
+    {
+        return array_filter($data, fn ($value, $key) => Schema::hasColumn('event_registrations', $key), ARRAY_FILTER_USE_BOTH);
+    }
+
     private function handlePaymentCaptured(array $payload): void
     {
         $paymentEntity = $payload['payload']['payment']['entity'] ?? [];
@@ -65,6 +77,16 @@ class RazorpayWebhookController extends Controller
 
         if (! $orderId) {
             Log::warning('Razorpay webhook missing order id');
+
+            return;
+        }
+
+        $eventRegistration = EventRegistration::query()->where('razorpay_order_id', $orderId)->first();
+        if ($eventRegistration) {
+            $this->eventPaymentFinalizer->markPaid($eventRegistration, [
+                'razorpay_payment_id' => $paymentEntity['id'] ?? null,
+                'razorpay_payment_status' => $paymentEntity['status'] ?? 'captured',
+            ]);
 
             return;
         }
@@ -115,6 +137,17 @@ class RazorpayWebhookController extends Controller
 
         if (! $orderId) {
             Log::warning('Razorpay webhook missing order id for failed payment');
+
+            return;
+        }
+
+        $eventRegistration = EventRegistration::query()->where('razorpay_order_id', $orderId)->first();
+        if ($eventRegistration) {
+            $eventRegistration->forceFill($this->filterEventRegistrationColumns([
+                'razorpay_payment_id' => $paymentEntity['id'] ?? null,
+                'razorpay_payment_status' => $paymentEntity['status'] ?? 'failed',
+                'payment_status' => 'failed',
+            ]))->save();
 
             return;
         }

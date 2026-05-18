@@ -36,6 +36,7 @@ use App\Http\Controllers\Admin\ImpactsController;
 use App\Http\Controllers\Admin\LeadSubmissionsController;
 use App\Http\Controllers\Admin\ReferralReportController;
 use App\Http\Controllers\Admin\AdminExecutionController;
+use App\Http\Controllers\Admin\EventManagementController;
 
 Route::get('/', function () {
     return view('landing');
@@ -141,6 +142,13 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/circles/{circle}/peer-options', [CirclePeersController::class, 'peerOptions'])->name('circles.peer-options');
         Route::put('/circles/{circle}/members/{circleMember}', [CircleMemberController::class, 'update'])->name('circles.members.update');
         Route::delete('/circles/{circle}/members/{circleMember}', [CircleMemberController::class, 'destroy'])->name('circles.members.destroy');
+        Route::get('/events', [EventManagementController::class, 'index'])->name('events.index');
+        Route::get('/events/create', [EventManagementController::class, 'create'])->name('events.create');
+        Route::post('/events', [EventManagementController::class, 'store'])->name('events.store');
+        Route::get('/events/{id}', [EventManagementController::class, 'show'])->name('events.show');
+        Route::get('/events/{id}/attendance', [EventManagementController::class, 'attendance'])->name('events.attendance');
+        Route::post('/events/registrations/{registration_id}/sync-zoho-invoice', [EventManagementController::class, 'syncZohoInvoice'])->name('events.registrations.sync-zoho-invoice');
+
         Route::get('/event-gallery', [EventGalleryController::class, 'index'])->name('event-gallery.index');
         Route::post('/event-gallery/events', [EventGalleryController::class, 'storeEvent'])->name('event-gallery.events.store');
         Route::post('/event-gallery/media', [EventGalleryController::class, 'storeMedia'])->name('event-gallery.media.store');

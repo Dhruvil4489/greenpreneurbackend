@@ -4,7 +4,7 @@ return [
     'region' => env('ZOHO_REGION', 'in'),
     'api_domain' => env('ZOHO_API_DOMAIN', 'https://www.zohoapis.in'),
     'base_url' => env('ZOHO_BILLING_BASE_URL', 'https://subscriptions.zoho.in/api/v1'),
-    'org_id' => env('ZOHO_ORG_ID'),
+    'org_id' => env('ZOHO_BILLING_ORG_ID', env('ZOHO_ORG_ID')),
     'client_id' => env('ZOHO_CLIENT_ID'),
     'client_secret' => env('ZOHO_CLIENT_SECRET'),
     'refresh_token' => env('ZOHO_REFRESH_TOKEN'),

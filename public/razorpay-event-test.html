@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Razorpay Event Payment Test</title>
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f4f7fb;
+      --card: #ffffff;
+      --border: #d9e2ec;
+      --text: #17202a;
+      --muted: #5f6c7b;
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --success: #15803d;
+      --danger: #b91c1c;
+      --console: #111827;
+      --console-text: #d1fae5;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(135deg, #eff6ff 0%, var(--bg) 55%, #eef2ff 100%);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      padding: 32px 16px;
+    }
+
+    main {
+      width: min(100%, 980px);
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(15, 23, 42, 0.10);
+      overflow: hidden;
+    }
+
+    .header {
+      padding: 28px 30px;
+      border-bottom: 1px solid var(--border);
+      background: #fff;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(24px, 4vw, 34px);
+      letter-spacing: -0.03em;
+    }
+
+    .subtitle {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    form {
+      padding: 28px 30px 18px;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    .field.full { grid-column: 1 / -1; }
+
+    label {
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    input, textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 13px;
+      font: inherit;
+      outline: none;
+      background: #fff;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    textarea { min-height: 74px; resize: vertical; }
+
+    input:focus, textarea:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+    }
+
+    .actions {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 4px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 12px;
+      background: var(--primary);
+      color: white;
+      font-weight: 800;
+      font-size: 16px;
+      padding: 13px 20px;
+      cursor: pointer;
+      transition: background 0.15s ease, transform 0.15s ease;
+    }
+
+    button:hover { background: var(--primary-dark); transform: translateY(-1px); }
+    button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+    .hint {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .status {
+      margin: 0 30px 22px;
+      border-radius: 14px;
+      padding: 14px 16px;
+      display: none;
+      font-weight: 700;
+    }
+
+    .status.success { display: block; color: var(--success); background: #dcfce7; border: 1px solid #bbf7d0; }
+    .status.error { display: block; color: var(--danger); background: #fee2e2; border: 1px solid #fecaca; }
+    .status.info { display: block; color: #1d4ed8; background: #dbeafe; border: 1px solid #bfdbfe; }
+
+    .result {
+      padding: 0 30px 30px;
+      display: grid;
+      gap: 18px;
+    }
+
+    .links {
+      display: none;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .links a {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 9px 13px;
+      text-decoration: none;
+      font-weight: 700;
+      background: #eef2ff;
+      color: #3730a3;
+      border: 1px solid #c7d2fe;
+    }
+
+    pre {
+      margin: 0;
+      min-height: 220px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      border-radius: 16px;
+      padding: 18px;
+      background: var(--console);
+      color: var(--console-text);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    @media (max-width: 720px) {
+      body { padding: 18px 10px; }
+      .header, form, .result { padding-left: 18px; padding-right: 18px; }
+      form { grid-template-columns: 1fr; }
+      .status { margin-left: 18px; margin-right: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="card">
+      <div class="header">
+        <h1>Razorpay Event Payment Test</h1>
+        <p class="subtitle">Paste the event registration payment details returned by the API, click Pay Now, and this page will verify the payment against the event registration verify endpoint.</p>
+      </div>
+
+      <form id="paymentForm" autocomplete="on">
+        <div class="field">
+          <label for="registrationId">registration_id</label>
+          <input id="registrationId" name="registration_id" required placeholder="event registration UUID">
+        </div>
+
+        <div class="field">
+          <label for="keyId">key_id</label>
+          <input id="keyId" name="key_id" required placeholder="rzp_test_...">
+        </div>
+
+        <div class="field">
+          <label for="orderId">order_id</label>
+          <input id="orderId" name="order_id" required placeholder="order_...">
+        </div>
+
+        <div class="field">
+          <label for="amount">amount</label>
+          <input id="amount" name="amount" required type="number" min="1" step="1" placeholder="Amount in paise, e.g. 50000">
+        </div>
+
+        <div class="field">
+          <label for="currency">currency</label>
+          <input id="currency" name="currency" required value="INR">
+        </div>
+
+        <div class="field">
+          <label for="customerName">customer name</label>
+          <input id="customerName" name="customer_name" required placeholder="Attendee name">
+        </div>
+
+        <div class="field">
+          <label for="customerEmail">customer email</label>
+          <input id="customerEmail" name="customer_email" type="email" placeholder="attendee@example.com">
+        </div>
+
+        <div class="field">
+          <label for="customerPhone">customer phone</label>
+          <input id="customerPhone" name="customer_phone" placeholder="9876543210">
+        </div>
+
+        <div class="field full">
+          <label for="description">description</label>
+          <textarea id="description" name="description" placeholder="Event Registration - Event Title">Event Registration</textarea>
+        </div>
+
+        <div class="actions">
+          <button id="payButton" type="submit">Pay Now</button>
+          <span class="hint">Verify API: <code>/api/v1/events/registrations/{registration_id}/razorpay/verify</code></span>
+        </div>
+      </form>
+
+      <div id="status" class="status info">Waiting for payment details.</div>
+
+      <div class="result">
+        <div id="links" class="links"></div>
+        <pre id="responseConsole">Response JSON will appear here after payment verification.</pre>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const form = document.getElementById('paymentForm');
+    const payButton = document.getElementById('payButton');
+    const statusBox = document.getElementById('status');
+    const responseConsole = document.getElementById('responseConsole');
+    const links = document.getElementById('links');
+
+    function setStatus(message, type = 'info') {
+      statusBox.className = 'status ' + type;
+      statusBox.textContent = message;
+    }
+
+    function setJson(value) {
+      responseConsole.textContent = JSON.stringify(value, null, 2);
+    }
+
+    function addLink(label, url) {
+      if (!url) return;
+      const a = document.createElement('a');
+      a.href = url;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.textContent = label;
+      links.appendChild(a);
+      links.style.display = 'flex';
+    }
+
+    function resetLinks() {
+      links.innerHTML = '';
+      links.style.display = 'none';
+    }
+
+    function field(id) {
+      return document.getElementById(id).value.trim();
+    }
+
+    async function verifyPayment(registrationId, paymentResponse) {
+      const verifyUrl = `/api/v1/events/registrations/${encodeURIComponent(registrationId)}/razorpay/verify`;
+      setStatus('Payment completed in Razorpay. Verifying with backend...', 'info');
+
+      const response = await fetch(verifyUrl, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          razorpay_order_id: paymentResponse.razorpay_order_id,
+          razorpay_payment_id: paymentResponse.razorpay_payment_id,
+          razorpay_signature: paymentResponse.razorpay_signature
+        })
+      });
+
+      const json = await response.json().catch(() => ({ success: false, message: 'Unable to parse JSON response.' }));
+      setJson(json);
+      resetLinks();
+
+      if (!response.ok || json.success === false) {
+        setStatus(json.message || 'Payment verification failed.', 'error');
+        return;
+      }
+
+      const data = json.data || {};
+      const qrUrl = data.qr_code_url || data.qr_url || data.qr || (data.registration && data.registration.qr_code_url);
+      const invoice = data.invoice || data;
+
+      addLink('Open QR Code', qrUrl);
+      addLink('Open Invoice', invoice.invoice_url || invoice.zoho_invoice_url);
+      addLink('Download Invoice PDF', invoice.invoice_pdf_url || invoice.zoho_invoice_pdf_url);
+
+      setStatus('Payment verified successfully. QR and invoice details are shown below if returned.', 'success');
+    }
+
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      resetLinks();
+
+      if (typeof Razorpay === 'undefined') {
+        setStatus('Razorpay checkout.js did not load. Check your internet connection.', 'error');
+        return;
+      }
+
+      const registrationId = field('registrationId');
+      const amount = Number(field('amount'));
+
+      if (!registrationId || !field('keyId') || !field('orderId') || !amount || amount <= 0) {
+        setStatus('Please fill registration_id, key_id, order_id and amount correctly.', 'error');
+        return;
+      }
+
+      const options = {
+        key: field('keyId'),
+        amount: amount,
+        currency: field('currency') || 'INR',
+        name: 'Peers Global Unity',
+        description: field('description') || 'Event Registration',
+        order_id: field('orderId'),
+        prefill: {
+          name: field('customerName'),
+          email: field('customerEmail'),
+          contact: field('customerPhone')
+        },
+        theme: { color: '#2563eb' },
+        handler: async function (paymentResponse) {
+          try {
+            payButton.disabled = true;
+            await verifyPayment(registrationId, paymentResponse);
+          } catch (error) {
+            setStatus(error.message || 'Payment verification request failed.', 'error');
+            setJson({ success: false, message: error.message || String(error) });
+          } finally {
+            payButton.disabled = false;
+          }
+        },
+        modal: {
+          ondismiss: function () {
+            setStatus('Razorpay checkout was closed before payment completion.', 'info');
+          }
+        }
+      };
+
+      setStatus('Opening Razorpay checkout...', 'info');
+      const razorpay = new Razorpay(options);
+      razorpay.on('payment.failed', function (response) {
+        setStatus(response.error && response.error.description ? response.error.description : 'Razorpay payment failed.', 'error');
+        setJson(response);
+      });
+      razorpay.open();
+    });
+  </script>
+</body>
+</html>

@@ -313,15 +313,15 @@
             : '<div style="background:#f1f5f9;border:1px dashed #cbd5e1;border-radius:12px;padding:28px;text-align:center;color:#64748b;">Image / visual block</div>';
         const two = splitContent(safeContent, 2);
         const three = splitContent(safeContent, 3);
-        let html = template.html_structure || '{{content}}';
+        let html = template.html_structure || '@{{content}}';
         const replacements = {
-            '{{content}}': safeContent,
-            '{{image}}': imageHtml,
-            '{{content_left}}': two[0] || safeContent,
-            '{{content_right}}': two[1] || safeContent,
-            '{{card_1}}': three[0] || safeContent,
-            '{{card_2}}': three[1] || three[0] || safeContent,
-            '{{card_3}}': three[2] || three[0] || safeContent,
+            '@{{content}}': safeContent,
+            '@{{image}}': imageHtml,
+            '@{{content_left}}': two[0] || safeContent,
+            '@{{content_right}}': two[1] || safeContent,
+            '@{{card_1}}': three[0] || safeContent,
+            '@{{card_2}}': three[1] || three[0] || safeContent,
+            '@{{card_3}}': three[2] || three[0] || safeContent,
         };
         Object.entries(replacements).forEach(([token, value]) => { html = html.split(token).join(value); });
         return `${template.css_styles ? `<style>${template.css_styles}</style>` : ''}${html}`;

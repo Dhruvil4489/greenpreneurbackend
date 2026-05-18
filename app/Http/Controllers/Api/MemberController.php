@@ -31,6 +31,7 @@ class MemberController extends BaseApiController
             'phone',
             'membership_status',
             'coins_balance',
+            'life_impacted_count',
             'last_login_at',
             'created_at',
             'updated_at',

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Api\BaseApiController;
+use App\Mail\SupportTicketResolvedMail;
 use App\Mail\SupportTicketSubmittedMail;
 use App\Models\SupportTicket;
 use App\Services\EmailLogs\EmailLogService;
@@ -102,7 +103,14 @@ class SupportTicketController extends BaseApiController
             }
         }
 
+        $shouldSendResolvedEmail = $previousStatus !== 'resolved'
+            && (($validated['status'] ?? $ticket->status) === 'resolved');
+
         $ticket->save();
+
+        if ($shouldSendResolvedEmail) {
+            $this->sendResolvedEmail($ticket);
+        }
 
         return $this->success($ticket->fresh('user'), 'Support ticket updated successfully.');
     }
@@ -124,6 +132,37 @@ class SupportTicketController extends BaseApiController
         }
 
         return $prefix . str_pad((string) $nextNumber, 4, '0', STR_PAD_LEFT);
+    }
+
+    private function sendResolvedEmail(SupportTicket $ticket): void
+    {
+        $mail = new SupportTicketResolvedMail($ticket);
+
+        try {
+            Mail::to($ticket->email)->send($mail);
+            $this->emailLogService->logMailableSent($mail, [
+                'to_email' => $ticket->email,
+                'to_name' => $ticket->contact_name,
+                'template_key' => 'support_ticket_resolved',
+                'source_module' => 'support',
+                'related_type' => 'support_ticket',
+                'related_id' => $ticket->id,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Failed to send support ticket resolved email.', [
+                'ticket_id' => $ticket->id,
+                'message' => $e->getMessage(),
+            ]);
+
+            $this->emailLogService->logMailableFailed($mail, [
+                'to_email' => $ticket->email,
+                'to_name' => $ticket->contact_name,
+                'template_key' => 'support_ticket_resolved',
+                'source_module' => 'support',
+                'related_type' => 'support_ticket',
+                'related_id' => $ticket->id,
+            ], $e);
+        }
     }
 
     private function sendConfirmationEmail(SupportTicket $ticket): void

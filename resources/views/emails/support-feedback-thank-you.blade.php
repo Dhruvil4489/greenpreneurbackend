@@ -9,12 +9,12 @@
 </tr>
 <tr>
 <td style="padding: 18px 20px; font-size: 16px; color: #333333;">
-Hello <strong>{{ $feedbackForm->user?->display_name ?: $feedbackForm->user?->first_name ?: 'User' }}</strong>,<br /><br />
+Hello <strong>{{ $user->display_name ?: $user->first_name ?: 'User' }}</strong>,<br /><br />
 Thank you for submitting your question/feedback.<br /><br />
 We have received your request with the following details:<br /><br />
-<strong>Subject:</strong> {{ $feedbackForm->subject }}<br />
-<strong>Category:</strong> {{ $feedbackForm->category }}<br />
-<strong>Question:</strong> {{ $feedbackForm->question }}<br /><br />
+<strong>Subject:</strong> {{ $feedback->subject }}<br />
+<strong>Category:</strong> {{ $feedback->category }}<br />
+<strong>Question:</strong> {{ $feedback->question }}<br /><br />
 Our support team will review it and get back to you soon.<br /><br />
 Regards,<br />
 <strong>Peers Global Unity Team</strong>

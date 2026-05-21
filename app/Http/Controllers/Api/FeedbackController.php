@@ -168,8 +168,9 @@ class FeedbackController extends BaseApiController
 
             DB::commit();
 
-            $feedback->load(['category', 'user']);
-            $this->sendFeedbackEmails($feedback);
+            $feedback->load(['user']);
+            $user = auth()->user();
+            $this->sendFeedbackEmails($feedback, $user);
 
             return response()->json([
                 'success' => true,
@@ -200,15 +201,22 @@ class FeedbackController extends BaseApiController
         }
     }
 
-    private function sendFeedbackEmails(FeedbackForm $feedbackForm): void
+    private function sendFeedbackEmails(FeedbackForm $feedbackForm, $user): void
     {
-        if ($feedbackForm->user?->email) {
+        if ($user && ! empty($user->email)) {
             try {
-                Mail::to($feedbackForm->user->email)->send(new FeedbackSubmittedMail($feedbackForm));
+                Mail::send('emails.support-feedback-thank-you', [
+                    'user' => $user,
+                    'feedback' => $feedbackForm,
+                ], function ($message) use ($user): void {
+                    $message->to($user->email)
+                        ->subject('Thank you for contacting Peers Global Unity');
+                });
             } catch (\Throwable $e) {
-                Log::error('Failed to send feedback thank-you email.', [
-                    'feedback_form_id' => $feedbackForm->id,
-                    'message' => $e->getMessage(),
+                Log::error('Feedback thank-you email failed', [
+                    'feedback_id' => $feedbackForm->id ?? null,
+                    'user_id' => auth()->id(),
+                    'error' => $e->getMessage(),
                 ]);
             }
         }

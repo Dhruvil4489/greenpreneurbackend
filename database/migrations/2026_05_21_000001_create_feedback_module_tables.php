@@ -21,6 +21,7 @@ return new class extends Migration {
             $table->uuid('id')->primary();
             $table->foreignUuid('user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->foreignUuid('category_id')->constrained('feedback_categories')->cascadeOnDelete();
+            $table->string('category', 100);
             $table->string('subject', 255);
             $table->text('question');
             $table->string('status', 50)->default('submitted');

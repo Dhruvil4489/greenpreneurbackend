@@ -35,13 +35,16 @@ class FeedbackController extends BaseApiController
         ]);
 
         $user = $request->user();
-        $feedbackForm = new FeedbackForm();
-        $feedbackForm->user_id = $user?->id;
-        $feedbackForm->category_id = $validated['category_id'];
-        $feedbackForm->subject = $validated['subject'];
-        $feedbackForm->question = $validated['question'];
-        $feedbackForm->status = 'submitted';
-        $feedbackForm->save();
+        $category = FeedbackCategory::query()->findOrFail($validated['category_id']);
+
+        $feedbackForm = FeedbackForm::query()->create([
+            'user_id' => $user?->id,
+            'category_id' => $category->id,
+            'category' => $category->name,
+            'subject' => $validated['subject'],
+            'question' => $validated['question'],
+            'status' => 'submitted',
+        ]);
 
         $mediaResponse = [];
         $uploadedMedia = $request->file('media', []);
@@ -75,7 +78,7 @@ class FeedbackController extends BaseApiController
         return $this->success([
             'id' => $feedbackForm->id,
             'subject' => $feedbackForm->subject,
-            'category' => $feedbackForm->category?->name,
+            'category' => $feedbackForm->category,
             'question' => $feedbackForm->question,
             'status' => $feedbackForm->status,
             'media' => $mediaResponse,

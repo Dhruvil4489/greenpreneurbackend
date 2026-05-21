@@ -20,6 +20,7 @@ class FeedbackForm extends Model
     protected $fillable = [
         'user_id',
         'category_id',
+        'category',
         'subject',
         'question',
         'status',

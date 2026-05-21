@@ -92,7 +92,13 @@ class SendAppUpdateReminderNotifications extends Command
                     (string) $pushToken->token,
                     $title,
                     $body,
-                    $data
+                    $data,
+                    null,
+                    [
+                        'user_id' => (string) $pushToken->user_id,
+                        'platform' => $pushToken->platform,
+                        'notification_type' => 'app_update',
+                    ],
                 );
 
                 Notification::create([

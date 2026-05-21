@@ -61,12 +61,24 @@ class SendPushNotificationJob implements ShouldQueue
                         $this->title,
                         $this->body,
                         $this->data,
+                        null,
+                        [
+                            'user_id' => (string) $this->user->id,
+                            'platform' => $token->platform,
+                            'device_type' => $token->platform,
+                            'notification_type' => $this->data['notification_type'] ?? null,
+                        ],
                     );
 
                     Log::info('Push sent successfully');
                 } catch (Throwable $e) {
                     Log::error('Push send failed', [
                         'error' => $e->getMessage(),
+                        'token_prefix' => substr((string) $token->token, 0, 20) . '...',
+                        'user_id' => (string) $this->user->id,
+                        'platform' => $token->platform,
+                        'device_type' => $token->platform,
+                        'notification_type' => $this->data['notification_type'] ?? null,
                     ]);
 
                     report($e);

@@ -12,7 +12,7 @@ use Throwable;
 
 class FcmService
 {
-    public function sendToToken(string $token, string $title, string $body, array $data = [], ?string $imageUrl = null): void
+    public function sendToToken(string $token, string $title, string $body, array $data = [], ?string $imageUrl = null, array $context = []): void
     {
         try {
             $projectId = (string) config('firebase.project_id');
@@ -84,6 +84,10 @@ class FcmService
                 'token_prefix' => substr($token, 0, 20) . '...',
                 'title' => $title,
                 'has_image' => $resolvedImageUrl !== null,
+                'user_id' => $context['user_id'] ?? null,
+                'platform' => $context['platform'] ?? null,
+                'device_type' => $context['device_type'] ?? ($context['platform'] ?? null),
+                'notification_type' => $context['notification_type'] ?? ($data['notification_type'] ?? null),
             ]);
 
             $response = Http::withToken($accessToken)
@@ -97,8 +101,25 @@ class FcmService
             if ($this->isInvalidTokenResponse($response->json())) {
                 UserPushToken::where('token', $token)->delete();
 
+                Log::warning('FCM token removed after invalid token response', [
+                    'token_prefix' => substr($token, 0, 20) . '...',
+                    'user_id' => $context['user_id'] ?? null,
+                    'platform' => $context['platform'] ?? null,
+                'device_type' => $context['device_type'] ?? ($context['platform'] ?? null),
+                    'notification_type' => $context['notification_type'] ?? ($data['notification_type'] ?? null),
+                ]);
+
                 return;
             }
+
+            Log::error('FCM send failed', [
+                'token_prefix' => substr($token, 0, 20) . '...',
+                'user_id' => $context['user_id'] ?? null,
+                'platform' => $context['platform'] ?? null,
+                'device_type' => $context['device_type'] ?? ($context['platform'] ?? null),
+                'notification_type' => $context['notification_type'] ?? ($data['notification_type'] ?? null),
+                'firebase_error' => $response->body(),
+            ]);
 
             throw new RuntimeException('FCM send failed: ' . $response->body());
         } catch (Throwable $throwable) {

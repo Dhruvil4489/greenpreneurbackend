@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class FeedbackForm extends Model
 {
@@ -18,6 +19,7 @@ class FeedbackForm extends Model
     public $incrementing = false;
 
     protected $fillable = [
+        'id',
         'user_id',
         'category_id',
         'category',
@@ -25,6 +27,17 @@ class FeedbackForm extends Model
         'question',
         'status',
     ];
+
+    protected static function boot(): void
+    {
+        parent::boot();
+
+        static::creating(function ($model): void {
+            if (empty($model->id)) {
+                $model->id = (string) Str::uuid();
+            }
+        });
+    }
 
     public function user(): BelongsTo
     {

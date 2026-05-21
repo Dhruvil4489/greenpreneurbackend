@@ -40,6 +40,7 @@ class FeedbackController extends BaseApiController
             $category = FeedbackCategory::query()->findOrFail($request->category_id);
 
             $feedback = FeedbackForm::query()->create([
+                'id' => (string) \Illuminate\Support\Str::uuid(),
                 'user_id' => auth()->id(),
                 'category_id' => $category->id,
                 'category' => $category->name,

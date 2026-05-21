@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Str;
 
 class FeedbackMedia extends Model
 {
@@ -17,6 +18,7 @@ class FeedbackMedia extends Model
     public $incrementing = false;
 
     protected $fillable = [
+        'id',
         'feedback_form_id',
         'file_path',
         'file_url',
@@ -29,6 +31,17 @@ class FeedbackMedia extends Model
     protected $casts = [
         'file_size' => 'integer',
     ];
+
+    protected static function boot(): void
+    {
+        parent::boot();
+
+        static::creating(function ($model): void {
+            if (empty($model->id)) {
+                $model->id = (string) Str::uuid();
+            }
+        });
+    }
 
     public function feedbackForm(): BelongsTo
     {

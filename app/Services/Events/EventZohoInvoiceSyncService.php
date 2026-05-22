@@ -32,6 +32,12 @@ class EventZohoInvoiceSyncService
             $invoice = ! empty($registration->zoho_invoice_id)
                 ? $this->updateInvoiceForEventRegistration((string) $registration->zoho_invoice_id, $invoicePayload)
                 : $this->zohoBillingService->createInvoiceForEventRegistration($customerPayload, $invoicePayload);
+            if (! empty($registration->zoho_invoice_id)) {
+                Log::info('zoho_invoice_existing_found', [
+                    'event_registration_id' => (string) $registration->id,
+                    'zoho_invoice_id' => $registration->zoho_invoice_id,
+                ]);
+            }
 
             $registration->forceFill($this->filterRegistrationColumns([
                 'zoho_customer_id' => $invoice['customer_id'] ?? $registration->zoho_customer_id,
@@ -59,23 +65,37 @@ class EventZohoInvoiceSyncService
 
                     if (! empty($registration->zoho_invoice_id)) {
                         try {
-                            Log::info('zoho_invoice_payment_record_start', ['event_registration_id' => (string) $registration->id, 'zoho_invoice_id' => $registration->zoho_invoice_id]);
-                            $paymentResponse = $this->zohoBillingClient->request('POST', '/customerpayments', [
-                                'customer_id' => $registration->zoho_customer_id,
-                                'payment_mode' => 'UPI',
-                                'amount' => (float) ($registration->payment_amount ?? $registration->amount ?? 0),
-                                'date' => now()->toDateString(),
-                                'reference_number' => (string) ($registration->zoho_payment_link_id ?? $registration->zoho_payment_id ?? $registration->id),
-                                'description' => 'Payment received via Zoho Payment Link for Event Registration',
-                                'invoices' => [[
-                                    'invoice_id' => $registration->zoho_invoice_id,
-                                    'amount_applied' => (float) ($registration->payment_amount ?? $registration->amount ?? 0),
-                                ]],
-                            ]);
-                            $registration->forceFill($this->filterRegistrationColumns([
-                                'zoho_payment_id' => data_get($paymentResponse, 'payment.payment_id') ?? data_get($paymentResponse, 'payment_id') ?? $registration->zoho_payment_id,
-                            ]))->save();
-                            Log::info('zoho_invoice_payment_record_success', ['event_registration_id' => (string) $registration->id, 'zoho_invoice_id' => $registration->zoho_invoice_id]);
+                            $beforeInvoiceResponse = $this->zohoBillingClient->request('GET', '/invoices/'.$registration->zoho_invoice_id);
+                            $beforeInvoiceData = is_array($beforeInvoiceResponse['invoice'] ?? null) ? $beforeInvoiceResponse['invoice'] : $beforeInvoiceResponse;
+                            $beforeStatus = strtolower((string) data_get($beforeInvoiceData, 'status', ''));
+                            $beforeBalance = (float) (data_get($beforeInvoiceData, 'balance') ?? data_get($beforeInvoiceData, 'balance_due') ?? 0);
+
+                            if (in_array($beforeStatus, ['paid'], true) || $beforeBalance <= 0.0) {
+                                Log::info('zoho_invoice_payment_record_success', [
+                                    'event_registration_id' => (string) $registration->id,
+                                    'zoho_invoice_id' => $registration->zoho_invoice_id,
+                                    'skipped' => true,
+                                    'reason' => 'already_paid_or_zero_balance',
+                                ]);
+                            } else {
+                                Log::info('zoho_invoice_payment_record_start', ['event_registration_id' => (string) $registration->id, 'zoho_invoice_id' => $registration->zoho_invoice_id]);
+                                $paymentResponse = $this->zohoBillingClient->request('POST', '/customerpayments', [
+                                    'customer_id' => $registration->zoho_customer_id,
+                                    'payment_mode' => 'UPI',
+                                    'amount' => (float) ($registration->payment_amount ?? $registration->amount ?? 0),
+                                    'date' => now()->toDateString(),
+                                    'reference_number' => (string) ($registration->zoho_payment_link_id ?? $registration->zoho_payment_id ?? $registration->id),
+                                    'description' => 'Payment received via Zoho Payment Link for Event Registration',
+                                    'invoices' => [[
+                                        'invoice_id' => $registration->zoho_invoice_id,
+                                        'amount_applied' => (float) ($registration->payment_amount ?? $registration->amount ?? 0),
+                                    ]],
+                                ]);
+                                $registration->forceFill($this->filterRegistrationColumns([
+                                    'zoho_payment_id' => data_get($paymentResponse, 'payment.payment_id') ?? data_get($paymentResponse, 'payment_id') ?? $registration->zoho_payment_id,
+                                ]))->save();
+                                Log::info('zoho_invoice_payment_record_success', ['event_registration_id' => (string) $registration->id, 'zoho_invoice_id' => $registration->zoho_invoice_id]);
+                            }
                         } catch (\Throwable $paymentException) {
                             $registration->forceFill($this->filterRegistrationColumns(['zoho_invoice_sync_error' => $paymentException->getMessage()]))->save();
                             Log::error('zoho_invoice_payment_record_failed', ['event_registration_id' => (string) $registration->id, 'error' => $paymentException->getMessage()]);
@@ -83,6 +103,11 @@ class EventZohoInvoiceSyncService
                     }
 
                     $invoiceResponse = $this->zohoBillingClient->request('GET', '/invoices/'.$registration->zoho_invoice_id);
+                    Log::info('zoho_invoice_final_fetch', [
+                        'event_registration_id' => (string) $registration->id,
+                        'zoho_invoice_id' => $registration->zoho_invoice_id,
+                        'response' => $invoiceResponse,
+                    ]);
                     $invoiceData = is_array($invoiceResponse['invoice'] ?? null) ? $invoiceResponse['invoice'] : $invoiceResponse;
                     $registration->forceFill($this->filterRegistrationColumns([
                         'zoho_invoice_url' => data_get($invoiceData, 'invoice_url') ?? data_get($invoiceData, 'url') ?? $registration->zoho_invoice_url,
@@ -90,9 +115,7 @@ class EventZohoInvoiceSyncService
                         'zoho_invoice_status' => strtolower((string) (data_get($invoiceData, 'status') ?? $registration->zoho_invoice_status)) === 'paid' ? 'paid' : (data_get($invoiceData, 'status') ?? $registration->zoho_invoice_status),
                     ]))->save();
                     Log::info('zoho_invoice_fetch_success', ['event_registration_id' => (string) $registration->id, 'zoho_invoice_id' => $registration->zoho_invoice_id]);
-                    if (strtolower((string) ($registration->zoho_invoice_status ?? '')) === 'paid') {
-                        Log::info('zoho_invoice_final_status_paid', ['event_registration_id' => (string) $registration->id, 'zoho_invoice_id' => $registration->zoho_invoice_id]);
-                    }
+                    Log::info('zoho_invoice_final_status', ['event_registration_id' => (string) $registration->id, 'zoho_invoice_id' => $registration->zoho_invoice_id, 'status' => $registration->zoho_invoice_status]);
                 }
             } catch (\Throwable $fetchException) {
                 Log::error('zoho_invoice_fetch_failed', [
@@ -209,8 +232,7 @@ class EventZohoInvoiceSyncService
     {
         $paths = [
             '/invoices/'.$invoiceId.'/markassent',
-            '/invoices/'.$invoiceId.'/sent',
-            '/invoices/'.$invoiceId.'/email',
+            '/invoices/'.$invoiceId.'/submit',
         ];
 
         $lastError = null;

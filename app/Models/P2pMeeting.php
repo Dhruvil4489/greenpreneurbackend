@@ -27,10 +27,12 @@ class P2pMeeting extends Model
         'meeting_date',
         'meeting_place',
         'remarks',
+        'media',
     ];
 
     protected $casts = [
         'is_deleted' => 'boolean',
+        'media' => 'array',
     ];
 
     protected static function booted(): void

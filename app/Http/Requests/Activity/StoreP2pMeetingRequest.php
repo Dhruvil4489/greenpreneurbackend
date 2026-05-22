@@ -18,6 +18,8 @@ class StoreP2pMeetingRequest extends FormRequest
             'meeting_date' => ['required', 'date_format:Y-m-d'],
             'meeting_place' => ['required', 'string', 'max:255'],
             'remarks' => ['required', 'string'],
+            'media_file_ids' => ['sometimes', 'array'],
+            'media_file_ids.*' => ['uuid', 'exists:files,id'],
         ];
     }
 }

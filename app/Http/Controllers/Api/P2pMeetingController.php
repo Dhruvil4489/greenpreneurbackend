@@ -8,6 +8,7 @@ use App\Models\P2pMeeting;
 use App\Models\Post;
 use App\Models\User;
 use App\Events\ActivityCreated;
+use App\Models\FileModel;
 use App\Services\Blocks\PeerBlockService;
 use App\Services\Coins\CoinsService;
 use App\Services\Notifications\NotifyUserService;
@@ -94,12 +95,15 @@ class P2pMeetingController extends BaseApiController
         }
 
         try {
+            $mediaEntries = $this->buildMediaEntries((array) $request->input('media_file_ids', []));
+
             $meeting = P2pMeeting::create([
                 'initiator_user_id' => $authUser->id,
                 'peer_user_id' => $request->input('peer_user_id'),
                 'meeting_date' => $request->input('meeting_date'),
                 'meeting_place' => $request->input('meeting_place'),
                 'remarks' => $request->input('remarks'),
+                'media' => $mediaEntries,
                 'is_deleted' => false,
             ]);
 
@@ -178,5 +182,40 @@ class P2pMeetingController extends BaseApiController
         }
 
         return $this->success($meeting);
+    }
+
+    /**
+     * @param  array<int, string>  $fileIds
+     * @return array<int, array{file_id: string, media_type: string}>
+     */
+    private function buildMediaEntries(array $fileIds): array
+    {
+        if ($fileIds === []) {
+            return [];
+        }
+
+        $fileMap = FileModel::query()
+            ->whereIn('id', $fileIds)
+            ->get(['id', 'mime_type'])
+            ->keyBy('id');
+
+        $media = [];
+
+        foreach ($fileIds as $fileId) {
+            $file = $fileMap->get($fileId);
+            if (! $file) {
+                continue;
+            }
+
+            $mimeType = strtolower((string) ($file->mime_type ?? ''));
+            $media[] = [
+                'file_id' => (string) $file->id,
+                'media_type' => str_starts_with($mimeType, 'image/')
+                    ? 'image'
+                    : (str_starts_with($mimeType, 'video/') ? 'video' : 'file'),
+            ];
+        }
+
+        return $media;
     }
 }

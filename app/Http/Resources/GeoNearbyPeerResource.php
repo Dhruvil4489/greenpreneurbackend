@@ -20,6 +20,7 @@ class GeoNearbyPeerResource extends JsonResource
             'city' => $this->resolveCity(),
             'location' => $this->resolveLocation(),
             'distance_km' => round((float) $this->distance_km, 2),
+            'life_impacted_count' => (int) ($this->life_impacted_count ?? 0),
             'last_seen_at' => $this->geo_last_seen_at,
             'connection_status' => $this->connection_status,
             'can_send_connection_request' => (bool) ($this->can_send_connection_request ?? true),

@@ -122,6 +122,7 @@ class GeoLocationController extends BaseApiController
                 'users.profile_photo_url',
                 'users.city_id',
                 'users.city',
+                'users.life_impacted_count',
             ])
             ->selectRaw('user_geo_locations.last_seen_at as geo_last_seen_at')
             ->selectRaw('user_geo_locations.latitude as geo_latitude, user_geo_locations.longitude as geo_longitude')

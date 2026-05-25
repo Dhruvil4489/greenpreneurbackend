@@ -115,22 +115,23 @@
                         <input type="text" name="coins_balance" class="form-control form-control-sm" placeholder="—" disabled>
                     </th>
                     <th>
-                        <div class="d-flex flex-column gap-2" style="min-width:180px;">
+                        <select class="form-select form-select-sm" disabled><option>Any</option></select>
+                    </th>
+                    <th>
+                        <div class="d-flex flex-column gap-2" style="min-width:200px;">
+                            <label for="joinedFilter" class="form-label form-label-sm mb-0 text-muted small">Joined Date</label>
                             <select name="joined_filter" id="joinedFilter" form="usersFiltersForm" class="form-select form-select-sm">
-                                <option value="all" @selected(($filters['joined_filter'] ?? 'all') === 'all')>All</option>
+                                <option value="all" @selected(($filters['joined_filter'] ?? 'all') === 'all')>All Joined Dates</option>
                                 <option value="last_month" @selected(($filters['joined_filter'] ?? 'all') === 'last_month')>Last Month</option>
                                 <option value="last_week" @selected(($filters['joined_filter'] ?? 'all') === 'last_week')>Last Week</option>
                                 <option value="yesterday" @selected(($filters['joined_filter'] ?? 'all') === 'yesterday')>Yesterday</option>
                                 <option value="custom" @selected(($filters['joined_filter'] ?? 'all') === 'custom')>Custom Range</option>
                             </select>
                             <div id="joinedCustomRange" class="d-flex flex-column gap-2">
-                                <input type="date" name="joined_from" form="usersFiltersForm" class="form-control form-control-sm" value="{{ $filters['joined_from'] ?? '' }}" placeholder="From Date">
-                                <input type="date" name="joined_to" form="usersFiltersForm" class="form-control form-control-sm" value="{{ $filters['joined_to'] ?? '' }}" placeholder="To Date">
+                                <input type="date" name="joined_from" form="usersFiltersForm" class="form-control form-control-sm" value="{{ request('joined_from', $filters['joined_from'] ?? '') }}" placeholder="From Date">
+                                <input type="date" name="joined_to" form="usersFiltersForm" class="form-control form-control-sm" value="{{ request('joined_to', $filters['joined_to'] ?? '') }}" placeholder="To Date">
                             </div>
                         </div>
-                    </th>
-                    <th>
-                        <select class="form-select form-select-sm" disabled><option>Any</option></select>
                     </th>
                     <th class="text-end">
                         <form id="usersFiltersForm" method="GET" class="d-flex gap-2 justify-content-end">

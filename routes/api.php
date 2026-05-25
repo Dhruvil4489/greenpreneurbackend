@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\Activities\RequirementController as ActivitiesRequi
 use App\Http\Controllers\Api\Activities\RequirementHistoryController;
 use App\Http\Controllers\Api\Activities\TestimonialHistoryController;
 use App\Http\Controllers\Api\ActivityController;
+use App\Http\Controllers\Api\ActivityCreativeController;
 use App\Http\Controllers\Api\AdsController;
 use App\Http\Controllers\Api\Admin\CircleJoinRequestAdminController;
 use App\Http\Controllers\Api\AdminActivityController;

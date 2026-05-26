@@ -22,8 +22,8 @@ class FollowRequestedNotification extends Notification
     {
         return [
             'notification_type' => 'follow_requested',
-            'title' => 'New follow request',
-            'body' => ($this->fromUser->display_name ?? $this->fromUser->first_name ?? 'Someone').' sent you a follow request.',
+            'title' => 'New Follower',
+            'body' => ($this->fromUser->display_name ?? $this->fromUser->first_name ?? 'Someone').' started following you.',
             'from_user' => (new UserMiniResource($this->fromUser))->resolve(),
             'follow' => [
                 'id' => $this->follow->id,

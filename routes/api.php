@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\Activities\RequirementController as ActivitiesRequi
 use App\Http\Controllers\Api\Activities\RequirementHistoryController;
 use App\Http\Controllers\Api\Activities\TestimonialHistoryController;
 use App\Http\Controllers\Api\ActivityController;
+use App\Http\Controllers\Api\ActivityCreativeController;
 use App\Http\Controllers\Api\AdsController;
 use App\Http\Controllers\Api\Admin\CircleJoinRequestAdminController;
 use App\Http\Controllers\Api\AdminActivityController;
@@ -553,6 +554,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/admin/support-tickets', [SupportTicketController::class, 'adminIndex']);
         Route::get('/admin/support-tickets/{id}', [SupportTicketController::class, 'adminShow'])->whereUuid('id');
         Route::patch('/admin/support-tickets/{id}', [SupportTicketController::class, 'adminUpdate'])->whereUuid('id');
+        Route::get('/admin/feedback', [FeedbackController::class, 'adminIndex']);
 
         // Chats & Messages
         Route::get('/chats', [ChatController::class, 'index']);
@@ -614,6 +616,13 @@ Route::prefix('v1')->group(function () {
         Route::get('/referrals/visitors', [ReferralController::class, 'listVisitors']);
         Route::patch('/referrals/visitors/{id}', [ReferralController::class, 'updateVisitor']);
 
+
+        Route::get('/my/activity-creatives', [ActivityCreativeController::class, 'myCreatives']);
+        Route::get('/activity-creatives', [ActivityCreativeController::class, 'index']);
+        Route::post('/activity-creatives', [ActivityCreativeController::class, 'store']);
+        Route::get('/activity-creatives/{id}', [ActivityCreativeController::class, 'show'])->whereUuid('id');
+        Route::delete('/activity-creatives/{id}', [ActivityCreativeController::class, 'destroy'])->whereUuid('id');
+
         // Files
         Route::post('/files/upload', [FileController::class, 'upload']);
 
@@ -634,6 +643,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/forms/register-visitor', [VisitorRegistrationController::class, 'store']);
         Route::get('/forms/register-visitor/my', [VisitorRegistrationController::class, 'myIndex']);
         Route::get('/forms/visitor-registrations/my', [VisitorRegistrationController::class, 'myIndex']);
+        Route::post('/feedback', [FeedbackController::class, 'store']);
 
         // Website form submissions (read)
         Route::get('/become-a-mentor', [BecomeMentorController::class, 'index']);
@@ -677,8 +687,7 @@ Route::prefix('v1')->group(function () {
     // Wallet payment webhook (called by payment gateway)
     Route::post('/wallet/webhook', [WalletController::class, 'paymentWebhook']);
 
-    // Feedback (public, user optional)
-    Route::post('/feedback', [FeedbackController::class, 'store']);
+    Route::get('/feedback/categories', [FeedbackController::class, 'categories']);
     Route::post('/become-a-mentor', [BecomeMentorController::class, 'submit']);
     Route::post('/become-a-speaker', [WebsiteFormsController::class, 'submitBecomeSpeaker']);
     Route::post('/share-sme-business-story', [WebsiteFormsController::class, 'submitSmeBusinessStory']);

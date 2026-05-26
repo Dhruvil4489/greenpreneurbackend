@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Requirement\IncompleteRequirementResource;
 use App\Http\Resources\Requirement\RequirementDetailResource;
+use App\Models\Post;
 use App\Models\Requirement;
 use App\Models\RequirementInterest;
 use App\Services\Requirements\RequirementNotificationService;
@@ -18,6 +19,32 @@ class RequirementController extends Controller
 {
     public function __construct(private readonly RequirementNotificationService $requirementNotificationService)
     {
+    }
+
+
+    private function createRequirementPostIfMissing(Requirement $requirement): void
+    {
+        $alreadyExists = Post::where('source_type', 'requirement')
+            ->where('source_id', $requirement->id)
+            ->exists();
+
+        if ($alreadyExists) {
+            return;
+        }
+
+        $contentText = trim((string) $requirement->subject . ' ' . (string) $requirement->description);
+
+        Post::create([
+            'user_id' => $requirement->user_id,
+            'content_text' => $contentText,
+            'media' => $requirement->media ?? [],
+            'visibility' => 'public',
+            'moderation_status' => 'pending',
+            'source_type' => 'requirement',
+            'source_id' => $requirement->id,
+            'is_deleted' => false,
+            'active' => true,
+        ]);
     }
 
     public function store(Request $request): JsonResponse
@@ -58,6 +85,7 @@ class RequirementController extends Controller
             ]);
 
             $requirement->load('user');
+            $this->createRequirementPostIfMissing($requirement);
 
             $notifiedCount = 0;
             try {
@@ -70,10 +98,12 @@ class RequirementController extends Controller
                 ]);
             }
 
+            $postId = $this->resolveTimelinePostId('requirement', (string) $requirement->id);
+
             return response()->json([
                 'status' => true,
                 'message' => 'Requirement created',
-                'data' => $requirement,
+                'data' => array_merge($requirement->toArray(), ['post_id' => $postId]),
                 'meta' => [
                     'notified_count' => $notifiedCount,
                 ],
@@ -95,6 +125,16 @@ class RequirementController extends Controller
                 'meta' => null,
             ], 500);
         }
+    }
+
+    private function resolveTimelinePostId(string $sourceType, string $sourceId): ?string
+    {
+        return Post::query()
+            ->where('source_type', $sourceType)
+            ->where('source_id', $sourceId)
+            ->where('is_deleted', false)
+            ->latest('created_at')
+            ->value('id');
     }
 
     public function myIndex(Request $request): JsonResponse
@@ -287,6 +327,7 @@ class RequirementController extends Controller
                 'data' => [
                     'id' => (string) $requirement->id,
                     'status' => $requirement->status,
+                    'post_id' => $this->resolveTimelinePostId('requirement', (string) $requirement->id),
                 ],
                 'meta' => null,
             ], 200);

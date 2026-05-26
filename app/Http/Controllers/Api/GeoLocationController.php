@@ -74,12 +74,16 @@ class GeoLocationController extends BaseApiController
     public function nearbyPeers(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'radius_km' => ['nullable', 'numeric', 'min:1', 'max:100'],
-            'limit' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'radius_km' => ['nullable', 'numeric', 'min:0'],
+            'limit' => ['nullable', 'integer', 'min:1', 'max:5000'],
         ]);
 
-        $radiusKm = (float) ($validated['radius_km'] ?? 10);
-        $limit = (int) ($validated['limit'] ?? 50);
+        $radiusKm = array_key_exists('radius_km', $validated) && $validated['radius_km'] !== null && $validated['radius_km'] !== ''
+            ? (float) $validated['radius_km']
+            : null;
+        $limit = array_key_exists('limit', $validated) && $validated['limit'] !== null && $validated['limit'] !== ''
+            ? (int) $validated['limit']
+            : null;
         $authUser = $request->user();
 
         $myLocation = UserGeoLocation::query()
@@ -106,13 +110,28 @@ class GeoLocationController extends BaseApiController
             ->join('user_geo_locations', 'user_geo_locations.user_id', '=', 'users.id')
             ->where('user_geo_locations.is_visible', true)
             ->where('users.id', '!=', (string) $authUser->id)
-            ->select('users.*')
+            ->select([
+                'users.id',
+                'users.display_name',
+                'users.first_name',
+                'users.last_name',
+                'users.company_name',
+                'users.designation',
+                'users.business_type',
+                'users.profile_photo_file_id',
+                'users.profile_photo_url',
+                'users.city_id',
+                'users.city',
+                'users.life_impacted_count',
+            ])
             ->selectRaw('user_geo_locations.last_seen_at as geo_last_seen_at')
             ->selectRaw('user_geo_locations.latitude as geo_latitude, user_geo_locations.longitude as geo_longitude')
             ->selectRaw($distanceExpression . ' as distance_km', $distanceBindings)
-            ->whereRaw($distanceExpression . ' <= ?', [...$distanceBindings, $radiusKm])
-            ->orderBy('distance_km')
-            ->limit($limit)
+            ->when($radiusKm !== null, function ($query) use ($distanceExpression, $distanceBindings, $radiusKm) {
+                $query->whereRaw($distanceExpression . ' <= ?', [...$distanceBindings, $radiusKm]);
+            })
+            ->orderBy('distance_km', 'asc')
+            ->when($limit !== null, fn ($query) => $query->limit($limit))
             ->get();
 
         $this->attachConnectionState($peers, (string) $authUser->id);

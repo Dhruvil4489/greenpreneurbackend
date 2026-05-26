@@ -318,7 +318,7 @@ class MemberController extends BaseApiController
         $followersQuery = UserFollow::query()
             ->where('following_id', $member->id)
             ->with([
-                'follower:id,display_name,first_name,last_name,company_name,designation,email,phone,city_id,city,country,profile_photo_file_id',
+                'follower:id,display_name,first_name,last_name,company_name,designation,email,phone,city_id,city,country,life_impacted_count,profile_photo_file_id',
                 'follower.city:id,name',
             ]);
 
@@ -365,6 +365,7 @@ class MemberController extends BaseApiController
             'phone' => $follower->phone,
             'city' => $this->resolveFollowerCityName($follower),
             'country' => $follower->country,
+            'life_impacted_count' => (int) ($follower->life_impacted_count ?? 0),
             'profile_photo_id' => $profilePhotoId,
             'profile_photo_url' => $profilePhotoId
                 ? url('/api/v1/files/' . $profilePhotoId)

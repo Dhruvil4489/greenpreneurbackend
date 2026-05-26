@@ -10,12 +10,15 @@ use App\Models\Circle;
 use App\Models\CircleMember;
 use App\Models\Connection;
 use App\Models\File;
+use App\Models\FileModel;
+use App\Models\P2pMeeting;
 use App\Models\Post;
 use App\Models\PostComment;
 use App\Models\PostLike;
 use App\Models\User;
 use App\Services\AdFeedService;
 use App\Services\Notifications\NotifyUserService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
@@ -57,6 +60,7 @@ class PostController extends BaseApiController
             ->selectRaw('posts.created_at as sort_at')
             ->selectRaw("'post' as source_type")
             ->selectRaw('posts.source_type as post_source_type')
+            ->selectRaw('posts.source_id as post_source_id')
             ->selectRaw('posts.source_event as post_source_event')
             ->selectRaw('accepted_peers.id as accepted_by_id')
             ->selectRaw('accepted_peers.display_name as accepted_by_display_name')
@@ -91,6 +95,7 @@ class PostController extends BaseApiController
             ->selectRaw('COALESCE(impacts.timeline_posted_at, impacts.approved_at, impacts.created_at) as sort_at')
             ->selectRaw("'impact' as source_type")
             ->selectRaw('NULL::text as post_source_type')
+            ->selectRaw('NULL::uuid as post_source_id')
             ->selectRaw('NULL::text as post_source_event')
             ->selectRaw('NULL::uuid as accepted_by_id')
             ->selectRaw('NULL::text as accepted_by_display_name')
@@ -133,7 +138,72 @@ class PostController extends BaseApiController
             ->get(['id', 'display_name', 'first_name', 'last_name'])
             ->keyBy(fn (User $peer) => (string) $peer->id);
 
-        $postItems = $pageRows->map(function ($row) use ($authors, $circles, $impactedPeers) {
+        $p2pMeetingsById = collect();
+        $fallbackP2pMeetingIdByPostId = [];
+
+        $p2pMeetingSourceIds = $pageRows
+            ->filter(fn ($row) => (string) ($row->source_type ?? '') === 'post' && $this->isP2pMeetingPostRow($row))
+            ->pluck('post_source_id')
+            ->filter()
+            ->map(fn ($id) => (string) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($p2pMeetingSourceIds !== []) {
+            $p2pMeetingsById = P2pMeeting::query()
+                ->whereIn('id', $p2pMeetingSourceIds)
+                ->get(['id', 'media'])
+                ->keyBy('id');
+        }
+
+        $p2pPostsWithoutSource = $pageRows->filter(function ($row): bool {
+            return (string) ($row->source_type ?? '') === 'post'
+                && $this->isP2pMeetingPostRow($row)
+                && empty($row->post_source_id);
+        })->values();
+
+        if ($p2pPostsWithoutSource->isNotEmpty()) {
+            $fallbackAuthorIds = $p2pPostsWithoutSource->pluck('author_id')->filter()->map(fn ($id) => (string) $id)->unique()->values()->all();
+            $postCreatedAt = $p2pPostsWithoutSource
+                ->map(fn ($row) => Carbon::parse((string) $row->created_at))
+                ->sortBy(fn (Carbon $value) => $value->getTimestamp())
+                ->values();
+
+            if ($fallbackAuthorIds !== [] && $postCreatedAt->isNotEmpty()) {
+                $windowStart = $postCreatedAt->first()->copy()->subMinutes(2);
+                $windowEnd = $postCreatedAt->last()->copy()->addMinutes(2);
+
+                $candidateMeetings = P2pMeeting::query()
+                    ->whereIn('initiator_user_id', $fallbackAuthorIds)
+                    ->whereBetween('created_at', [$windowStart, $windowEnd])
+                    ->get(['id', 'initiator_user_id', 'created_at', 'media'])
+                    ->groupBy(fn (P2pMeeting $meeting): string => (string) $meeting->initiator_user_id);
+
+                foreach ($p2pPostsWithoutSource as $row) {
+                    $authorId = (string) ($row->author_id ?? '');
+                    $rowCreatedAt = Carbon::parse((string) $row->created_at);
+                    $authorMeetings = $candidateMeetings->get($authorId, collect());
+
+                    $bestMeeting = $authorMeetings
+                        ->filter(function (P2pMeeting $meeting) use ($rowCreatedAt): bool {
+                            $diff = abs($meeting->created_at->getTimestamp() - $rowCreatedAt->getTimestamp());
+                            return $diff <= 120;
+                        })
+                        ->sortBy(function (P2pMeeting $meeting) use ($rowCreatedAt): int {
+                            return abs($meeting->created_at->getTimestamp() - $rowCreatedAt->getTimestamp());
+                        })
+                        ->first();
+
+                    if ($bestMeeting) {
+                        $fallbackP2pMeetingIdByPostId[(string) $row->id] = (string) $bestMeeting->id;
+                        $p2pMeetingsById->put((string) $bestMeeting->id, $bestMeeting);
+                    }
+                }
+            }
+        }
+
+        $postItems = $pageRows->map(function ($row) use ($authors, $circles, $impactedPeers, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId) {
             $author = $authors->get((string) $row->author_id);
             $circle = $row->circle_id ? $circles->get((string) $row->circle_id) : null;
 
@@ -141,7 +211,7 @@ class PostController extends BaseApiController
                 'type' => (string) $row->source_type,
                 'id' => (string) $row->id,
                 'content_text' => (string) ($row->content_text ?? ''),
-                'media' => $this->decodeJsonColumn($row->media),
+                'media' => $this->buildFeedMedia($row, $p2pMeetingsById, $fallbackP2pMeetingIdByPostId),
                 'tags' => $this->decodeJsonColumn($row->tags),
                 'visibility' => (string) $row->visibility,
                 'moderation_status' => (string) $row->moderation_status,
@@ -163,8 +233,8 @@ class PostController extends BaseApiController
                 'is_liked_by_me' => (bool) $row->is_liked_by_me,
                 'saves_count' => (int) $row->saves_count,
                 'is_saved' => (bool) $row->is_saved_by_me,
-                'created_at' => $row->created_at,
-                'updated_at' => $row->updated_at,
+                'created_at' => $this->formatToIstDateTime($row->created_at),
+                'updated_at' => $this->formatToIstDateTime($row->updated_at),
             ];
 
             if (
@@ -225,6 +295,106 @@ class PostController extends BaseApiController
                 'total' => $posts->total(),
             ],
         ]);
+    }
+
+    private function formatToIstDateTime(mixed $value): ?string
+    {
+        if (empty($value)) {
+            return null;
+        }
+
+        return Carbon::parse((string) $value)
+            ->timezone('Asia/Kolkata')
+            ->format('Y-m-d H:i:s');
+    }
+
+    private function buildFeedMedia(object $row, $p2pMeetingsById, array $fallbackP2pMeetingIdByPostId): array
+    {
+        $isP2pPost = (string) ($row->source_type ?? '') === 'post' && $this->isP2pMeetingPostRow($row);
+
+        if ($isP2pPost && ! empty($row->post_source_id)) {
+            $meeting = $p2pMeetingsById->get((string) $row->post_source_id);
+            if ($meeting) {
+                return $this->expandP2pMedia($meeting->media);
+            }
+        }
+
+        if ($isP2pPost) {
+            $fallbackMeetingId = $fallbackP2pMeetingIdByPostId[(string) $row->id] ?? null;
+            if ($fallbackMeetingId) {
+                $meeting = $p2pMeetingsById->get($fallbackMeetingId);
+                if ($meeting) {
+                    return $this->expandP2pMedia($meeting->media);
+                }
+            }
+
+            return [];
+        }
+
+        return $this->decodeJsonColumn($row->media);
+    }
+
+    private function isP2pMeetingPostRow(object $row): bool
+    {
+        $sourceType = (string) ($row->post_source_type ?? '');
+        if ($sourceType === 'p2p_meeting') {
+            return true;
+        }
+
+        $tags = $this->decodeJsonColumn($row->tags ?? null);
+        return in_array('p2p_meeting', $tags, true);
+    }
+
+    /**
+     * @param  mixed  $rawMedia
+     * @return array<int, array<string, mixed>>
+     */
+    private function expandP2pMedia(mixed $rawMedia): array
+    {
+        $media = $this->normalizeMediaPayload($rawMedia);
+        if ($media === []) {
+            return [];
+        }
+
+        $fileIds = collect($media)
+            ->map(fn ($item): ?string => is_array($item) ? ($item['file_id'] ?? null) : null)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $files = FileModel::query()->whereIn('id', $fileIds)->get()->keyBy('id');
+
+        return collect($media)
+            ->map(function ($item) use ($files): array {
+                $fileId = is_array($item) ? ($item['file_id'] ?? null) : null;
+                $mediaType = is_array($item) ? ($item['media_type'] ?? null) : null;
+                $file = is_string($fileId) && $fileId !== '' ? $files->get($fileId) : null;
+
+                return [
+                    'file_id' => $fileId,
+                    'media_type' => $mediaType,
+                    'url' => is_string($fileId) && $fileId !== '' ? url('/api/v1/files/' . $fileId) : null,
+                    'mime_type' => $file->mime_type ?? $file->mime ?? $file->type ?? null,
+                    'original_name' => $file->original_name ?? $file->original_filename ?? $file->name ?? null,
+                    'size' => $file->size ?? $file->size_bytes ?? null,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function normalizeMediaPayload(mixed $rawMedia): array
+    {
+        if (is_string($rawMedia)) {
+            $decoded = json_decode($rawMedia, true);
+            return is_array($decoded) ? $decoded : [];
+        }
+
+        return is_array($rawMedia) ? $rawMedia : [];
     }
 
     public function userPosts(Request $request, string $userId)

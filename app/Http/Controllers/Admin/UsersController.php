@@ -1386,8 +1386,7 @@ class UsersController extends Controller
 
         $joinedStatus = $this->activeCircleMemberStatus();
 
-        $query = User::query()
-            ->select([
+        $userSelectColumns = [
                 'id',
                 'email',
                 'phone',
@@ -1409,7 +1408,6 @@ class UsersController extends Controller
                 'members_introduced_count',
                 'target_regions',
                 'target_business_categories',
-                'main_business_category_id',
                 'business_category_id',
                 'hobbies_interests',
                 'leadership_roles',
@@ -1452,7 +1450,14 @@ class UsersController extends Controller
                 'welcome_membership_email_status',
                 'welcome_membership_email_error',
                 'welcome_membership_email_plan_code',
-            ])
+            ];
+
+        if (Schema::hasColumn('users', 'main_business_category_id')) {
+            $userSelectColumns[] = 'main_business_category_id';
+        }
+
+        $query = User::query()
+            ->select($userSelectColumns)
             ->with([
                 'city',
                 'mainBusinessCategory:id,name',
@@ -1493,6 +1498,9 @@ class UsersController extends Controller
         $circleId = (string) $request->query('circle_id', 'all');
         $membership = $request->input('membership_status');
         $phone = $request->input('phone');
+        $joinedFilter = (string) $request->input('joined_filter', 'all');
+        $joinedFrom = (string) $request->input('joined_from', '');
+        $joinedTo = (string) $request->input('joined_to', '');
         $perPage = $request->integer('per_page') ?: 20;
 
         if ($search !== '') {
@@ -1554,6 +1562,47 @@ class UsersController extends Controller
             $query->where('phone', 'ILIKE', "%{$phone}%");
         }
 
+        $joinedDateExpression = 'COALESCE(membership_starts_at, created_at)';
+        $now = now();
+        switch ($joinedFilter) {
+            case 'last_month':
+                $query->whereRaw("{$joinedDateExpression} BETWEEN ? AND ?", [
+                    $now->copy()->subDays(30)->startOfDay(),
+                    $now->copy()->endOfDay(),
+                ]);
+                break;
+            case 'last_week':
+                $query->whereRaw("{$joinedDateExpression} BETWEEN ? AND ?", [
+                    $now->copy()->subDays(7)->startOfDay(),
+                    $now->copy()->endOfDay(),
+                ]);
+                break;
+            case 'yesterday':
+                $query->whereRaw("{$joinedDateExpression} BETWEEN ? AND ?", [
+                    $now->copy()->subDay()->startOfDay(),
+                    $now->copy()->subDay()->endOfDay(),
+                ]);
+                break;
+            case 'custom':
+                $fromDate = $this->parseJoinedFilterDate($joinedFrom);
+                $toDate = $this->parseJoinedFilterDate($joinedTo);
+
+                if ($fromDate instanceof Carbon && $toDate instanceof Carbon) {
+                    $query->whereRaw("{$joinedDateExpression} BETWEEN ? AND ?", [
+                        $fromDate->startOfDay(),
+                        $toDate->endOfDay(),
+                    ]);
+                } elseif ($fromDate instanceof Carbon) {
+                    $query->whereRaw("{$joinedDateExpression} >= ?", [$fromDate->startOfDay()]);
+                } elseif ($toDate instanceof Carbon) {
+                    $query->whereRaw("{$joinedDateExpression} <= ?", [$toDate->endOfDay()]);
+                }
+                break;
+            default:
+                $joinedFilter = 'all';
+                break;
+        }
+
         $sortable = ['display_name', 'coins_balance', 'last_login_at', 'created_at'];
         $sort = $request->input('sort');
         $direction = $request->input('dir', 'desc') === 'asc' ? 'asc' : 'desc';
@@ -1566,12 +1615,23 @@ class UsersController extends Controller
 
         $perPage = in_array($perPage, [10, 20, 25, 50, 100], true) ? $perPage : 20;
 
-        if ($search !== '' || filled($phone) || ($circleId !== '' && $circleId !== 'all') || ($membership && $membership !== 'all')) {
+        if (
+            $search !== ''
+            || filled($phone)
+            || ($circleId !== '' && $circleId !== 'all')
+            || ($membership && $membership !== 'all')
+            || $joinedFilter !== 'all'
+            || filled($joinedFrom)
+            || filled($joinedTo)
+        ) {
             Log::info('admin.users.index.filters_applied', [
                 'search' => $search,
                 'phone_filter' => $phone,
                 'circle_id' => $circleId,
                 'membership_status' => $membership,
+                'joined_filter' => $joinedFilter,
+                'joined_from' => $joinedFrom,
+                'joined_to' => $joinedTo,
                 'is_circle_scoped' => $isCircleScoped,
             ]);
         }
@@ -1581,12 +1641,29 @@ class UsersController extends Controller
             'circle_id' => $circleId,
             'membership_status' => $membership,
             'phone' => $phone,
+            'joined_filter' => $joinedFilter,
+            'joined_from' => $joinedFrom,
+            'joined_to' => $joinedTo,
             'per_page' => $perPage,
             'sort' => $sort,
             'dir' => $direction,
         ];
 
         return [$query, $filters, $perPage];
+    }
+
+    private function parseJoinedFilterDate(?string $value): ?Carbon
+    {
+        $dateValue = trim((string) $value);
+        if ($dateValue === '') {
+            return null;
+        }
+
+        try {
+            return Carbon::createFromFormat('Y-m-d', $dateValue);
+        } catch (Throwable) {
+            return null;
+        }
     }
 
     private function buildCircleCategoryPickerData($circles)

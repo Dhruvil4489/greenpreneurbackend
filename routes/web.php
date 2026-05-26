@@ -40,6 +40,7 @@ use App\Http\Controllers\Admin\LeadSubmissionsController;
 use App\Http\Controllers\Admin\ReferralReportController;
 use App\Http\Controllers\Admin\AdminExecutionController;
 use App\Http\Controllers\Admin\EventManagementController;
+use App\Http\Controllers\Admin\ActivityCreativeController;
 
 Route::get('/', function () {
     return view('landing');
@@ -79,6 +80,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/activities/p2p-meetings/export', [ActivitiesP2PMeetingsController::class, 'export'])->name('activities.p2p-meetings.export');
         Route::get('/activities/business-deals', [ActivitiesBusinessDealsController::class, 'index'])->name('activities.business-deals.index');
         Route::get('/activities/business-deals/export', [ActivitiesBusinessDealsController::class, 'export'])->name('activities.business-deals.export');
+        Route::get('/activity-creatives', [ActivityCreativeController::class, 'index'])->name('activity-creatives.index');
         Route::get('/activities/become-a-leader', [ActivitiesLeaderInterestController::class, 'index'])->name('activities.become-a-leader.index');
         Route::get('/activities/recommend-peer', [ActivitiesPeerRecommendationController::class, 'index'])->name('activities.recommend-peer.index');
         Route::get('/activities/register-visitor', [ActivitiesVisitorRegistrationController::class, 'index'])->name('activities.register-visitor.index');

@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use Carbon\Carbon;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class PostResource extends JsonResource
@@ -83,8 +84,19 @@ class PostResource extends JsonResource
             'saves_count'    => $savesCount,
             'is_saved'       => $isSaved,
 
-            'created_at' => $this->created_at,
-            'updated_at' => $this->updated_at,
+            'created_at' => $this->formatToIstDateTime($this->created_at),
+            'updated_at' => $this->formatToIstDateTime($this->updated_at),
         ];
+    }
+
+    private function formatToIstDateTime(mixed $value): ?string
+    {
+        if (empty($value)) {
+            return null;
+        }
+
+        return Carbon::parse((string) $value)
+            ->timezone('Asia/Kolkata')
+            ->format('Y-m-d H:i:s');
     }
 }

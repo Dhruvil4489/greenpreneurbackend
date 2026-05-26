@@ -214,8 +214,10 @@ class FollowController extends Controller
         $following = UserFollow::query()
             ->with(['follower', 'following'])
             ->where('follower_id', $request->user()->id)
-            ->where('status', 'accepted')
-            ->orderByDesc('accepted_at')
+            ->whereNull('rejected_at')
+            ->whereNull('blocked_at')
+            ->whereIn('status', ['pending', 'accepted'])
+            ->orderByDesc('requested_at')
             ->simplePaginate(20);
 
         return $this->successResponse('Following list fetched successfully.', [

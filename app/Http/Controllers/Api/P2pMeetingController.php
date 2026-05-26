@@ -8,9 +8,11 @@ use App\Models\P2pMeeting;
 use App\Models\Post;
 use App\Models\User;
 use App\Events\ActivityCreated;
+use App\Models\FileModel;
 use App\Services\Blocks\PeerBlockService;
 use App\Services\Coins\CoinsService;
 use App\Services\Notifications\NotifyUserService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -32,6 +34,9 @@ class P2pMeetingController extends BaseApiController
                 'content_text'      => $contentText,
                 'media'             => [],
                 'tags'              => ['p2p_meeting'],
+                'source_type'       => 'p2p_meeting',
+                'source_id'         => $meeting->id,
+                'source_event'      => 'p2p_meeting_created',
                 'visibility'        => 'public',
                 'moderation_status' => 'pending',
                 'sponsored'         => false,
@@ -74,7 +79,10 @@ class P2pMeetingController extends BaseApiController
             ->paginate($perPage);
 
         return $this->success([
-            'items' => $paginator->items(),
+            'items' => collect($paginator->items())
+                ->map(fn (P2pMeeting $meeting): array => $this->buildP2pMeetingResponse($meeting))
+                ->values()
+                ->all(),
             'pagination' => [
                 'current_page' => $paginator->currentPage(),
                 'last_page' => $paginator->lastPage(),
@@ -94,12 +102,15 @@ class P2pMeetingController extends BaseApiController
         }
 
         try {
+            $mediaEntries = $this->buildMediaEntries((array) $request->input('media_file_ids', []));
+
             $meeting = P2pMeeting::create([
                 'initiator_user_id' => $authUser->id,
                 'peer_user_id' => $request->input('peer_user_id'),
                 'meeting_date' => $request->input('meeting_date'),
                 'meeting_place' => $request->input('meeting_place'),
                 'remarks' => $request->input('remarks'),
+                'media' => $mediaEntries,
                 'is_deleted' => false,
             ]);
 
@@ -118,7 +129,10 @@ class P2pMeetingController extends BaseApiController
                 ]);
             }
 
+            $meeting->setAttribute('media', $this->expandP2pMedia($meeting->media));
+
             $this->createPostForP2pMeeting($meeting);
+            $meeting->setAttribute('post_id', $this->resolveTimelinePostId('p2p_meeting', (string) $meeting->id));
 
             event(new ActivityCreated(
                 'P2P Meeting',
@@ -154,7 +168,7 @@ class P2pMeetingController extends BaseApiController
             // Verify SQL:
             // select * from notifications where user_id = '<receiver-user-uuid>' order by created_at desc limit 20;
 
-            return $this->success($meeting, 'P2P meeting saved successfully', 201);
+            return $this->success($this->buildP2pMeetingResponse($meeting), 'P2P meeting saved successfully', 201);
         } catch (Throwable $e) {
             return $this->error('Something went wrong', 500);
         }
@@ -177,6 +191,143 @@ class P2pMeetingController extends BaseApiController
             return $this->error('P2P meeting not found', 404);
         }
 
-        return $this->success($meeting);
+        return $this->success($this->buildP2pMeetingResponse($meeting));
+    }
+
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildP2pMeetingResponse(P2pMeeting $meeting): array
+    {
+        $attributes = $meeting->toArray();
+        $attributes['media'] = $this->expandP2pMedia($attributes['media'] ?? null);
+
+        $attributes['post_id'] = $meeting->getAttribute('post_id')
+            ?? $this->resolveTimelinePostId('p2p_meeting', (string) $meeting->id);
+
+        if ($meeting->getAttribute('coins') !== null) {
+            $attributes['coins'] = $meeting->getAttribute('coins');
+        }
+
+        return $this->formatP2pMeetingTimestamps($attributes);
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     * @return array<string, mixed>
+     */
+    private function formatP2pMeetingTimestamps(array $attributes): array
+    {
+        foreach (['created_at', 'updated_at'] as $field) {
+            if (! empty($attributes[$field])) {
+                $attributes[$field] = Carbon::parse((string) $attributes[$field])
+                    ->timezone('Asia/Kolkata')
+                    ->format('Y-m-d H:i:s');
+            }
+        }
+
+        return $attributes;
+    }
+
+    /**
+     * @param  array<int, string>  $fileIds
+     * @return array<int, array{file_id: string, media_type: string}>
+     */
+    private function resolveTimelinePostId(string $sourceType, string $sourceId): ?string
+    {
+        return Post::query()
+            ->where('source_type', $sourceType)
+            ->where('source_id', $sourceId)
+            ->where('is_deleted', false)
+            ->latest('created_at')
+            ->value('id');
+    }
+
+    private function buildMediaEntries(array $fileIds): array
+    {
+        if ($fileIds === []) {
+            return [];
+        }
+
+        $fileMap = FileModel::query()
+            ->whereIn('id', $fileIds)
+            ->get(['id', 'mime_type'])
+            ->keyBy('id');
+
+        $media = [];
+
+        foreach ($fileIds as $fileId) {
+            $file = $fileMap->get($fileId);
+            if (! $file) {
+                continue;
+            }
+
+            $mimeType = strtolower((string) ($file->mime_type ?? ''));
+            $media[] = [
+                'file_id' => (string) $file->id,
+                'media_type' => str_starts_with($mimeType, 'image/')
+                    ? 'image'
+                    : (str_starts_with($mimeType, 'video/') ? 'video' : 'file'),
+            ];
+        }
+
+        return $media;
+    }
+
+    /**
+     * @param  mixed  $rawMedia
+     * @return array<int, array<string, mixed>>
+     */
+    private function expandP2pMedia(mixed $rawMedia): array
+    {
+        $media = $this->normalizeMediaPayload($rawMedia);
+
+        if ($media === []) {
+            return [];
+        }
+
+        $fileIds = collect($media)
+            ->map(fn ($item): ?string => is_array($item) ? ($item['file_id'] ?? null) : null)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $files = FileModel::query()
+            ->whereIn('id', $fileIds)
+            ->get()
+            ->keyBy('id');
+
+        return collect($media)
+            ->map(function ($item) use ($files): array {
+                $fileId = is_array($item) ? ($item['file_id'] ?? null) : null;
+                $mediaType = is_array($item) ? ($item['media_type'] ?? null) : null;
+                $file = is_string($fileId) && $fileId !== '' ? $files->get($fileId) : null;
+
+                return [
+                    'file_id' => $fileId,
+                    'media_type' => $mediaType,
+                    'url' => is_string($fileId) && $fileId !== '' ? url('/api/v1/files/' . $fileId) : null,
+                    'mime_type' => $file->mime_type ?? $file->mime ?? $file->type ?? null,
+                    'original_name' => $file->original_name ?? $file->original_filename ?? $file->name ?? null,
+                    'size' => $file->size ?? $file->size_bytes ?? null,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function normalizeMediaPayload(mixed $rawMedia): array
+    {
+        if (is_string($rawMedia)) {
+            $decoded = json_decode($rawMedia, true);
+            return is_array($decoded) ? $decoded : [];
+        }
+
+        return is_array($rawMedia) ? $rawMedia : [];
     }
 }

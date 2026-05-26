@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\BaseApiController;
 use App\Http\Requests\Activity\StoreRequirementRequest;
 use App\Events\ActivityCreated;
 use App\Models\Requirement;
+use App\Models\Post;
 use App\Services\Coins\CoinsService;
 use Illuminate\Http\Request;
 use Throwable;
@@ -90,6 +91,15 @@ class RequirementController extends BaseApiController
                 (string) $authUser->id,
                 null
             ));
+
+            $post = Post::query()
+                ->where('source_type', 'requirement')
+                ->where('source_id', $requirement->id)
+                ->where('is_deleted', false)
+                ->latest('created_at')
+                ->first();
+
+            $requirement->setAttribute('post_id', $post?->id);
 
             return $this->success($requirement, 'Requirement created successfully', 201);
         } catch (Throwable $e) {

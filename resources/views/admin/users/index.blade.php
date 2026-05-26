@@ -17,6 +17,10 @@
 @endif
 
 <div class="card p-3">
+    <form id="usersFiltersForm" method="GET" class="d-none">
+        <input type="hidden" name="sort" value="{{ $filters['sort'] }}">
+        <input type="hidden" name="dir" value="{{ $filters['dir'] }}">
+    </form>
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
         <div class="d-flex align-items-center gap-2">
             <label for="perPage" class="form-label mb-0 small text-muted">Rows per page:</label>
@@ -33,10 +37,38 @@
                 No records found
             @endif
         </div>
-        <div class="d-flex align-items-center gap-2">
-            <a href="{{ route('admin.users.import') }}" class="btn btn-outline-primary btn-sm">Import</a>
-            <button type="button" class="btn btn-outline-secondary btn-sm" id="exportCsvBtn">Export CSV</button>
-            <a href="{{ route('admin.users.create') }}" class="btn btn-primary btn-sm">Add Peer</a>
+        <div class="d-flex flex-column align-items-end gap-2 ms-auto">
+            <div class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
+                <a href="{{ route('admin.users.import') }}" class="btn btn-outline-primary btn-sm">Import</a>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="exportCsvBtn">Export CSV</button>
+                <a href="{{ route('admin.users.create') }}" class="btn btn-primary btn-sm">Add Peer</a>
+            </div>
+            <div class="d-flex align-items-end gap-2 flex-wrap justify-content-end">
+                <div class="d-flex flex-column gap-1" style="min-width: 200px;">
+                    <label for="joinedFilter" class="form-label form-label-sm mb-0 text-muted small">Date Filter</label>
+                    <select name="joined_filter" id="joinedFilter" form="usersFiltersForm" class="form-select form-select-sm">
+                        <option value="all" @selected(($filters['joined_filter'] ?? 'all') === 'all')>All Joined Dates</option>
+                        <option value="last_month" @selected(($filters['joined_filter'] ?? 'all') === 'last_month')>Last Month</option>
+                        <option value="last_week" @selected(($filters['joined_filter'] ?? 'all') === 'last_week')>Last Week</option>
+                        <option value="yesterday" @selected(($filters['joined_filter'] ?? 'all') === 'yesterday')>Yesterday</option>
+                        <option value="custom" @selected(($filters['joined_filter'] ?? 'all') === 'custom')>Custom Range</option>
+                    </select>
+                </div>
+                <div id="joinedCustomRange" class="d-flex gap-2 flex-wrap">
+                    <div class="d-flex flex-column gap-1">
+                        <label for="joinedFrom" class="form-label form-label-sm mb-0 text-muted small">From</label>
+                        <input id="joinedFrom" type="date" name="joined_from" form="usersFiltersForm" class="form-control form-control-sm" value="{{ request('joined_from', $filters['joined_from'] ?? '') }}">
+                    </div>
+                    <div class="d-flex flex-column gap-1">
+                        <label for="joinedTo" class="form-label form-label-sm mb-0 text-muted small">To</label>
+                        <input id="joinedTo" type="date" name="joined_to" form="usersFiltersForm" class="form-control form-control-sm" value="{{ request('joined_to', $filters['joined_to'] ?? '') }}">
+                    </div>
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="submit" form="usersFiltersForm" class="btn btn-sm btn-primary">Apply</button>
+                    <a class="btn btn-sm btn-outline-secondary" href="{{ route('admin.users.index') }}">Reset</a>
+                </div>
+            </div>
         </div>
     </div>
     <form id="exportCsvForm" method="POST" action="{{ route('admin.users.export.csv') }}" class="d-none">
@@ -45,6 +77,9 @@
         <input type="hidden" name="membership_status" value="{{ $filters['membership_status'] ?? '' }}">
         <input type="hidden" name="circle_id" value="{{ $filters['circle_id'] ?? 'all' }}">
         <input type="hidden" name="phone" value="{{ $filters['phone'] ?? '' }}">
+        <input type="hidden" name="joined_filter" value="{{ $filters['joined_filter'] ?? 'all' }}">
+        <input type="hidden" name="joined_from" value="{{ $filters['joined_from'] ?? '' }}">
+        <input type="hidden" name="joined_to" value="{{ $filters['joined_to'] ?? '' }}">
         <input type="hidden" name="sort" value="{{ $filters['sort'] }}">
         <input type="hidden" name="dir" value="{{ $filters['dir'] }}">
     </form>
@@ -112,18 +147,13 @@
                         <input type="text" name="coins_balance" class="form-control form-control-sm" placeholder="—" disabled>
                     </th>
                     <th>
-                        <input type="text" name="last_login_at" class="form-control form-control-sm" placeholder="—" disabled>
+                        <select class="form-select form-select-sm" disabled><option>Any</option></select>
                     </th>
                     <th>
                         <select class="form-select form-select-sm" disabled><option>Any</option></select>
                     </th>
                     <th class="text-end">
-                        <form id="usersFiltersForm" method="GET" class="d-flex gap-2 justify-content-end">
-                            <input type="hidden" name="sort" value="{{ $filters['sort'] }}">
-                            <input type="hidden" name="dir" value="{{ $filters['dir'] }}">
-                            <button type="submit" class="btn btn-sm btn-primary">Apply</button>
-                            <a class="btn btn-sm btn-outline-secondary" href="{{ route('admin.users.index') }}">Reset</a>
-                        </form>
+                        <span class="text-muted small">Use controls above</span>
                     </th>
                 </tr>
             </thead>
@@ -458,6 +488,8 @@
         const filterForm = document.getElementById('usersFiltersForm');
         const exportBtn = document.getElementById('exportCsvBtn');
         const exportForm = document.getElementById('exportCsvForm');
+        const joinedFilter = document.getElementById('joinedFilter');
+        const joinedCustomRange = document.getElementById('joinedCustomRange');
         const submitFilters = (form) => {
             const params = new URLSearchParams(window.location.search);
             const formData = new FormData(form);
@@ -486,6 +518,18 @@
             e.preventDefault();
             submitFilters(filterForm);
         });
+
+        const toggleJoinedDateRange = () => {
+            if (!joinedCustomRange || !joinedFilter) return;
+            const isCustom = joinedFilter.value === 'custom';
+            joinedCustomRange.classList.toggle('d-none', !isCustom);
+            joinedCustomRange.querySelectorAll('input').forEach((input) => {
+                input.disabled = !isCustom;
+            });
+        };
+
+        joinedFilter?.addEventListener('change', toggleJoinedDateRange);
+        toggleJoinedDateRange();
 
         exportBtn?.addEventListener('click', () => {
             if (!exportForm) return;

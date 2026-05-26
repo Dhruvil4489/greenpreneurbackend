@@ -62,6 +62,8 @@ class BusinessDealController extends BaseApiController
                 'moderation_status' => 'pending',
                 'sponsored'         => false,
                 'is_deleted'        => false,
+                'source_type'       => 'business_deal',
+                'source_id'         => $deal->id,
             ]);
         } catch (Throwable $e) {
             Log::error('Failed to create post for business deal', [
@@ -151,6 +153,7 @@ class BusinessDealController extends BaseApiController
             }
 
             $this->createPostForBusinessDeal($businessDeal);
+            $businessDeal->setAttribute('post_id', $this->resolveTimelinePostId('business_deal', (string) $businessDeal->id));
 
             event(new ActivityCreated(
                 'Business Deal',
@@ -205,10 +208,24 @@ class BusinessDealController extends BaseApiController
             // Verify SQL:
             // select * from notifications where user_id = '<receiver-user-uuid>' order by created_at desc limit 20;
 
+            if ($businessDeal->getAttribute('post_id') === null) {
+                $businessDeal->setAttribute('post_id', $this->resolveTimelinePostId('business_deal', (string) $businessDeal->id));
+            }
+
             return $this->success($businessDeal, 'Business deal saved successfully', 201);
         } catch (Throwable $e) {
             return $this->error('Something went wrong', 500);
         }
+    }
+
+    private function resolveTimelinePostId(string $sourceType, string $sourceId): ?string
+    {
+        return Post::query()
+            ->where('source_type', $sourceType)
+            ->where('source_id', $sourceId)
+            ->where('is_deleted', false)
+            ->latest('created_at')
+            ->value('id');
     }
 
     public function show(Request $request, string $id)

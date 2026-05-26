@@ -13,6 +13,7 @@ class RequirementTimelineResource extends JsonResource
 
         return [
             'id' => $this->id,
+            'post_id' => $this->post_id,
             'user_name' => data_get($creator, 'name')
                 ?: data_get($creator, 'full_name')
                 ?: data_get($creator, 'display_name')

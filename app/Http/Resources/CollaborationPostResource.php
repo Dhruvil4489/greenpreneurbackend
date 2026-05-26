@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Models\Post;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -19,6 +20,7 @@ class CollaborationPostResource extends JsonResource
 
         return [
             'id' => $this->id,
+            'post_id' => Post::query()->where('source_type', 'collaboration_post')->where('source_id', $this->id)->where('is_deleted', false)->latest('created_at')->value('id'),
             'collaboration_type' => [
                 'id' => $this->collaborationType?->id,
                 'name' => $this->collaborationType?->name,

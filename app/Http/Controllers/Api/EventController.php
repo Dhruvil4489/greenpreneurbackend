@@ -383,11 +383,9 @@ class EventController extends BaseApiController
             'invoice_url' => $registration->zoho_invoice_url ?? null,
             'invoice_pdf_url' => $registration->zoho_invoice_pdf_url ?? null,
             'zoho_invoice_status' => $registration->zoho_invoice_status ?? null,
-            'invoice_balance' => in_array(strtolower((string) ($registration->zoho_invoice_status ?? '')), ['paid', 'closed'], true) ? 0 : null,
-            'amount_paid' => in_array(strtolower((string) ($registration->zoho_invoice_status ?? '')), ['paid', 'closed'], true)
-                ? (float) ($registration->payment_amount ?? $registration->amount ?? 0)
-                : null,
-            'payment_applied' => in_array(strtolower((string) ($registration->zoho_invoice_status ?? '')), ['paid', 'closed'], true),
+            'invoice_balance' => data_get($registration->metadata ?? [], 'invoice_balance'),
+            'amount_paid' => data_get($registration->metadata ?? [], 'invoice_amount_paid'),
+            'payment_applied' => data_get($registration->metadata ?? [], 'invoice_payment_applied'),
         ];
     }
 

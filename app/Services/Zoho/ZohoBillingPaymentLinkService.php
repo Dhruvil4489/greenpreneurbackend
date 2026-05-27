@@ -211,6 +211,11 @@ class ZohoBillingPaymentLinkService
                 'zoho_payment_id' => $syncResult['payment_id'] ?? $registration->zoho_payment_id,
                 'zoho_invoice_url' => $syncResult['invoice_url'] ?? $registration->zoho_invoice_url,
                 'zoho_invoice_pdf_url' => $syncResult['invoice_pdf_url'] ?? $registration->zoho_invoice_pdf_url,
+                'metadata' => array_merge((array) ($registration->metadata ?? []), [
+                    'invoice_balance' => $syncResult['balance'] ?? null,
+                    'invoice_amount_paid' => $syncResult['amount_paid'] ?? null,
+                    'invoice_payment_applied' => $syncResult['payment_applied'] ?? null,
+                ]),
             ]))->save();
             if (! empty($registration->zoho_invoice_id)) {
                 Log::info('zoho_billing_payment_link_invoice_created', ['registration_id' => (string) $registration->id, 'zoho_invoice_id' => $registration->zoho_invoice_id]);

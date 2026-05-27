@@ -139,6 +139,7 @@ class EventController extends BaseApiController
             'zoho_invoice_number' => $registration->zoho_invoice_number ?? null,
             'zoho_invoice_url' => $registration->zoho_invoice_url ?? null,
             'zoho_invoice_pdf_url' => $registration->zoho_invoice_pdf_url ?? null,
+            'zoho_invoice_status' => $registration->zoho_invoice_status ?? null,
             'zoho_payment_status' => $registration->zoho_payment_status ?? null,
             'zoho_payment_id' => $registration->zoho_payment_id ?? null,
             'invoice_sync_error' => $registration->zoho_invoice_sync_error ?? null,
@@ -382,6 +383,9 @@ class EventController extends BaseApiController
             'invoice_url' => $registration->zoho_invoice_url ?? null,
             'invoice_pdf_url' => $registration->zoho_invoice_pdf_url ?? null,
             'zoho_invoice_status' => $registration->zoho_invoice_status ?? null,
+            'invoice_balance' => null,
+            'amount_paid' => null,
+            'payment_applied' => null,
         ];
     }
 

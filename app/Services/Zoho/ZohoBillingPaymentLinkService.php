@@ -151,24 +151,23 @@ class ZohoBillingPaymentLinkService
 
     public function markRegistrationPaid(EventRegistration $registration, array $paymentLinkData, ?array $rawPayload = null): EventRegistration
     {
-        if (($registration->payment_status ?? null) === 'paid') {
-            return $registration->fresh(['event', 'occurrence', 'user']);
-        }
-
         $status = strtolower((string) (data_get($paymentLinkData, 'status') ?? ''));
-        if (! in_array($status, ['paid', 'success', 'succeeded'], true)) {
+        $alreadyPaid = ($registration->payment_status ?? null) === 'paid';
+        if (! $alreadyPaid && ! in_array($status, ['paid', 'success', 'succeeded'], true)) {
             return $registration;
         }
 
-        $registration->forceFill($this->filter([
-            'status' => 'registered',
-            'payment_status' => 'paid',
-            'zoho_payment_status' => 'paid',
-            'payment_completed_at' => now(),
-            'zoho_payment_id' => data_get($paymentLinkData, 'payments.0.payment_id') ?? data_get($paymentLinkData, 'payment_id') ?? data_get($paymentLinkData, 'transaction_id'),
-            'webhook_payload' => $rawPayload ?? $paymentLinkData,
-            'zoho_payment_webhook_payload' => $rawPayload ?? $paymentLinkData,
-        ]))->save();
+        if (! $alreadyPaid) {
+            $registration->forceFill($this->filter([
+                'status' => 'registered',
+                'payment_status' => 'paid',
+                'zoho_payment_status' => 'paid',
+                'payment_completed_at' => now(),
+                'zoho_payment_id' => data_get($paymentLinkData, 'payments.0.payment_id') ?? data_get($paymentLinkData, 'payment_id') ?? data_get($paymentLinkData, 'transaction_id'),
+                'webhook_payload' => $rawPayload ?? $paymentLinkData,
+                'zoho_payment_webhook_payload' => $rawPayload ?? $paymentLinkData,
+            ]))->save();
+        }
 
         if (empty($registration->qr_code_url) && empty($registration->qr_code_path)) {
             $this->qrService->generateAndStore($registration);
@@ -179,6 +178,15 @@ class ZohoBillingPaymentLinkService
 
         try {
             $registration = $this->invoiceSyncService->sync($registration->fresh(['event', 'occurrence', 'user']));
+            $syncResult = $this->invoiceSyncService->finalizeAndApplyPaymentToEventInvoice($registration);
+            $registration->forceFill($this->filter([
+                'zoho_invoice_status' => $syncResult['status'] ?? $registration->zoho_invoice_status,
+                'zoho_invoice_synced_at' => now(),
+                'zoho_invoice_sync_error' => $syncResult['sync_error'] ?? null,
+                'zoho_payment_id' => $syncResult['payment_id'] ?? $registration->zoho_payment_id,
+                'zoho_invoice_url' => $syncResult['invoice_url'] ?? $registration->zoho_invoice_url,
+                'zoho_invoice_pdf_url' => $syncResult['invoice_pdf_url'] ?? $registration->zoho_invoice_pdf_url,
+            ]))->save();
             if (! empty($registration->zoho_invoice_id)) {
                 Log::info('zoho_billing_payment_link_invoice_created', ['registration_id' => (string) $registration->id, 'zoho_invoice_id' => $registration->zoho_invoice_id]);
             }

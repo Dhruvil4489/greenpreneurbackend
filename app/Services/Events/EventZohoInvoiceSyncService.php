@@ -141,17 +141,26 @@ class EventZohoInvoiceSyncService
 
             $finalStatus = strtolower((string) data_get($finalInvoice, 'status', ''));
             $finalBalance = (float) (data_get($finalInvoice, 'balance') ?? data_get($finalInvoice, 'balance_due') ?? 0);
+            $finalTotal = (float) (data_get($finalInvoice, 'total') ?? 0);
+            $finalAmountPaid = (float) (data_get($finalInvoice, 'payment_made') ?? data_get($finalInvoice, 'amount_paid') ?? 0);
+            $finalPaymentApplied = $paymentApplied || ($finalBalance <= 0) || in_array($finalStatus, ['paid', 'closed'], true) || count((array) data_get($finalInvoice, 'payments', [])) > 0;
+            if ($finalAmountPaid <= 0 && $finalPaymentApplied && $finalBalance <= 0) {
+                $finalAmountPaid = $finalTotal > 0
+                    ? $finalTotal
+                    : (float) ($registration->payment_amount ?? $registration->amount ?? 0);
+            }
+
             return [
                 'invoice_id' => (string) data_get($finalInvoice, 'invoice_id', $registration->zoho_invoice_id),
                 'invoice_number' => (string) (data_get($finalInvoice, 'invoice_number') ?? $registration->zoho_invoice_number),
                 'status' => (string) data_get($finalInvoice, 'status', ''),
                 'balance' => $finalBalance,
-                'total' => (float) (data_get($finalInvoice, 'total') ?? 0),
-                'amount_paid' => (float) (data_get($finalInvoice, 'amount_paid') ?? 0),
+                'total' => $finalTotal,
+                'amount_paid' => $finalAmountPaid,
                 'invoice_url' => data_get($finalInvoice, 'invoice_url') ?? data_get($finalInvoice, 'url'),
                 'invoice_pdf_url' => data_get($finalInvoice, 'invoice_pdf_url') ?? data_get($finalInvoice, 'pdf_url'),
                 'payment_id' => $matchedPaymentId,
-                'payment_applied' => $paymentApplied || ($finalBalance <= 0) || in_array($finalStatus, ['paid', 'closed'], true),
+                'payment_applied' => $finalPaymentApplied,
                 'sync_error' => (($finalBalance <= 0) || in_array($finalStatus, ['paid', 'closed'], true))
                     ? null
                     : 'Payment is paid but could not be applied to invoice. Zoho response: status='.$finalStatus.' balance='.$finalBalance,

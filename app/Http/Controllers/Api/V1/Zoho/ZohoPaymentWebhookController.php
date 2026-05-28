@@ -23,7 +23,28 @@ class ZohoPaymentWebhookController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized webhook request.'], 401);
         }
 
-        $result = $this->webhooks->handle($request);
-        return response()->json(['success' => true, 'message' => $result['message'] ?? 'Webhook received.']);
+        try {
+            $result = $this->webhooks->handle($request);
+        } catch (\Throwable $e) {
+            Log::error('zoho_payment_webhook_unhandled_exception', [
+                'exception_message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+            $result = ['message' => 'Webhook received but processing failed. It can be retried.'];
+        }
+
+        $response = ['success' => true, 'message' => $result['message'] ?? 'Webhook received.'];
+        if (app()->environment('local') && filter_var($request->header('X-Debug-Webhook'), FILTER_VALIDATE_BOOL)) {
+            $response['debug'] = [
+                'normalized' => $result['normalized'] ?? $this->webhooks->normalizeZohoPaymentWebhookPayload($request->all()),
+                'webhook_event_id' => $result['webhook_event_id'] ?? null,
+                'registration_found' => $result['registration_found'] ?? null,
+                'registration_id' => $result['registration_id'] ?? null,
+                'error' => $result['error'] ?? null,
+            ];
+        }
+
+        return response()->json($response);
     }
 }

@@ -7,6 +7,7 @@ use App\Console\Commands\RetryZohoWebhooks;
 use App\Console\Commands\LifeImpactRecalculateUsersCommand;
 use App\Console\Commands\SyncPaidEventInvoices;
 use App\Console\Commands\TestZohoConvertInvoice;
+use App\Console\Commands\TestZohoCustomerPaymentWebhook;
 use App\Console\Commands\TestZohoPaidWebhook;
 use App\Console\Commands\SendAppUpdateReminderNotifications;
 use Illuminate\Console\Scheduling\Schedule;
@@ -20,6 +21,7 @@ class Kernel extends ConsoleKernel
         SendAppUpdateReminderNotifications::class,
         SyncPaidEventInvoices::class,
         TestZohoConvertInvoice::class,
+        TestZohoCustomerPaymentWebhook::class,
         RetryZohoWebhooks::class,
         TestZohoPaidWebhook::class,
     ];

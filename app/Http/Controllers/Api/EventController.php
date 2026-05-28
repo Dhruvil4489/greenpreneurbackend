@@ -21,13 +21,13 @@ use App\Models\EventRegistrationRequest;
 use App\Models\EventRsvp;
 use App\Services\Events\EventCheckinService;
 use App\Services\Events\EventPaymentService;
+use App\Services\Events\EventPaymentSyncService;
 use App\Services\Events\EventRegistrationService;
 use App\Services\Events\EventService;
 use App\Services\Events\EventQrService;
 use App\Services\Events\EventRazorpayPaymentFinalizer;
 use App\Services\Events\EventRazorpayPaymentService;
 use App\Services\Events\EventZohoInvoiceSyncService;
-use App\Services\Zoho\ZohoBillingPaymentLinkService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -38,10 +38,10 @@ class EventController extends BaseApiController
         private readonly EventRegistrationService $registrations,
         private readonly EventCheckinService $checkins,
         private readonly EventPaymentService $payments,
+        private readonly EventPaymentSyncService $eventPaymentSync,
         private readonly EventRazorpayPaymentService $razorpayPayments,
         private readonly EventRazorpayPaymentFinalizer $paymentFinalizer,
         private readonly EventZohoInvoiceSyncService $zohoInvoiceSync,
-        private readonly ZohoBillingPaymentLinkService $zohoBillingPaymentLinkService,
     ) {}
 
     public function index(Request $request)
@@ -264,7 +264,8 @@ class EventController extends BaseApiController
 
         if (($registration->payment_gateway ?? '') === 'zoho_billing_payment_link' && ! empty($registration->zoho_payment_link_id)) {
             try {
-                $registration = $this->zohoBillingPaymentLinkService->syncPaymentStatus($registration);
+                $syncResult = $this->eventPaymentSync->syncRegistrationPayment($registration, ['source' => 'payment_status_api']);
+                $registration = $syncResult['registration'];
             } catch (\Throwable) {
                 // non-fatal fallback
             }

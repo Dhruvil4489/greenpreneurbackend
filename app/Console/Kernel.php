@@ -3,9 +3,11 @@
 namespace App\Console;
 
 use App\Console\Commands\LifeImpactBackfillCommand;
+use App\Console\Commands\RetryZohoWebhooks;
 use App\Console\Commands\LifeImpactRecalculateUsersCommand;
 use App\Console\Commands\SyncPaidEventInvoices;
 use App\Console\Commands\TestZohoConvertInvoice;
+use App\Console\Commands\TestZohoPaidWebhook;
 use App\Console\Commands\SendAppUpdateReminderNotifications;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
@@ -18,6 +20,8 @@ class Kernel extends ConsoleKernel
         SendAppUpdateReminderNotifications::class,
         SyncPaidEventInvoices::class,
         TestZohoConvertInvoice::class,
+        RetryZohoWebhooks::class,
+        TestZohoPaidWebhook::class,
     ];
 
     protected function schedule(Schedule $schedule): void

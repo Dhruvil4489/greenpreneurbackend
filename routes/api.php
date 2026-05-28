@@ -96,6 +96,7 @@ use App\Http\Controllers\Api\V1\Zoho\ZohoDebugController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoPlansController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoWebhookController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoPaymentLinkWebhookController;
+use App\Http\Controllers\Api\V1\Zoho\ZohoPaymentWebhookController;
 use App\Http\Controllers\Api\V1\Zoho\ZohoEventFormWebhookController;
 use App\Http\Controllers\Api\WalletController;
 use Illuminate\Support\Facades\Route;
@@ -146,6 +147,8 @@ Route::prefix('v1')->group(function () {
     });
     Route::post('/zoho/events/form-webhook', ZohoEventFormWebhookController::class);
     Route::post('/payments/zoho-billing/payment-link/webhook', [ZohoPaymentLinkWebhookController::class, 'handle']);
+    Route::post('/webhooks/zoho/payments', [ZohoPaymentWebhookController::class, 'handle']);
+    Route::post('/zoho/payments/webhook', [ZohoPaymentWebhookController::class, 'handle']);
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/membership-summary', [MembershipSummaryController::class, 'show']);

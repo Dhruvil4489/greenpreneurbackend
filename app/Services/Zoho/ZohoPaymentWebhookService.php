@@ -28,65 +28,22 @@ class ZohoPaymentWebhookService
 
         try {
             $event = $this->storeEvent($request, $payload, $normalized);
-            if (in_array($event->status, ['processed', 'ignored'], true) && $event->processed_at) {
-                Log::info('zoho_payment_webhook_duplicate_ignored', $this->context($event, $normalized));
+
+            if (($event->status ?? null) === 'processed') {
+                Log::info('zoho_payment_webhook_duplicate_ignored', $this->context($event, $normalized) + ['duplicate_status' => $event->status]);
                 return ['message' => 'Webhook already processed.', 'normalized' => $normalized, 'webhook_event_id' => $event->id];
             }
 
-            $event->forceFill(['status' => 'processing', 'error' => null])->save();
-            Log::info('zoho_payment_webhook_lookup_started', $this->context($event, $normalized));
-            $registration = $this->findRegistration($payload, $normalized, $event);
-            if (! $registration) {
-                $lookupError = $this->lastLookupError ?: 'Registration not found for payment webhook.';
-                $event->forceFill(['status' => 'ignored', 'processed_at' => now(), 'error' => $lookupError])->save();
-                Log::warning('zoho_payment_webhook_registration_not_found', $this->context($event, $normalized));
-                Log::warning('zoho_payment_webhook_ignored_registration_not_found', $this->context($event, $normalized));
-                return ['message' => 'Webhook received but registration not found.', 'normalized' => $normalized, 'webhook_event_id' => $event->id, 'registration_found' => false];
+            if (($event->status ?? null) === 'processing' && $event->updated_at && $event->updated_at->greaterThan(now()->subMinutes(5))) {
+                Log::info('zoho_payment_webhook_duplicate_ignored', $this->context($event, $normalized) + ['duplicate_status' => $event->status]);
+                return ['message' => 'Webhook is already processing.', 'normalized' => $normalized, 'webhook_event_id' => $event->id];
             }
 
-            $event->forceFill([
-                'registration_id' => $registration->id,
-                'payment_link_id' => $event->payment_link_id ?: ($normalized['payment_link_id'] ?: $registration->zoho_payment_link_id),
-                'payment_id' => $normalized['payment_id'] ?: $event->payment_id,
-                'status' => 'processing',
-            ])->save();
-            $normalized['registration_id'] = (string) $registration->id;
-            Log::info('zoho_payment_webhook_registration_found', $this->context($event, $normalized));
-            Log::info('zoho_payment_webhook_registration_found_final', $this->context($event, $normalized));
-
-            $status = strtolower((string) ($normalized['status'] ?? ''));
-            $type = strtolower((string) ($normalized['event_type'] ?? ''));
-            if (str_contains($type, 'cancel') || str_contains($type, 'expired') || in_array($status, ['cancelled', 'canceled', 'expired'], true)) {
-                $this->markCancelledOrExpired($registration, $payload, str_contains($type.$status, 'expired') ? 'expired' : 'cancelled');
-                $event->forceFill(['status' => 'processed', 'processed_at' => now(), 'error' => null])->save();
-                Log::info('zoho_payment_webhook_cancelled_or_expired', $this->context($event, $normalized));
-                Log::info('zoho_payment_webhook_processed', $this->context($event, $normalized));
-                return ['message' => 'Webhook received.', 'normalized' => $normalized, 'webhook_event_id' => $event->id, 'registration_found' => true];
+            if (in_array((string) $event->status, ['ignored', 'failed'], true)) {
+                Log::info('zoho_payment_webhook_duplicate_reprocessing', $this->context($event, $normalized) + ['previous_status' => $event->status, 'previous_error' => $event->error]);
             }
 
-            if ($this->isAlreadyFullySynced($registration)) {
-                $event->forceFill(['status' => 'processed', 'processed_at' => now(), 'error' => null])->save();
-                Log::info('zoho_payment_webhook_processed', $this->context($event, $normalized));
-                return ['message' => 'Webhook already processed.', 'normalized' => $normalized, 'webhook_event_id' => $event->id, 'registration_found' => true, 'registration_id' => (string) $registration->id];
-            }
-
-            if ($this->isPaidWebhook($normalized)) {
-                Log::info('zoho_payment_webhook_sync_started', $this->context($event, $normalized));
-                $this->primePaidFields($registration, $payload, $normalized);
-                $this->paymentSync->syncRegistrationPayment($registration->fresh(['event', 'occurrence', 'user']), [
-                    'source' => 'zoho_webhook',
-                    'webhook_event_id' => $event->id,
-                    'payload' => $payload,
-                    'payment_id' => $normalized['payment_id'] ?? null,
-                ]);
-                $event->forceFill(['status' => 'processed', 'processed_at' => now(), 'error' => null])->save();
-                Log::info('zoho_payment_webhook_sync_success', $this->context($event, $normalized));
-                Log::info('zoho_payment_webhook_processed', $this->context($event, $normalized));
-            } else {
-                $event->forceFill(['status' => 'ignored', 'processed_at' => now(), 'error' => 'Unsupported webhook event/status.'])->save();
-            }
-
-            return ['message' => 'Webhook received.', 'normalized' => $normalized, 'webhook_event_id' => $event->id, 'registration_found' => true, 'registration_id' => $normalized['registration_id'] ?? null];
+            return $this->processEvent($event, $request, $payload, $normalized);
         } catch (\Throwable $e) {
             if ($event instanceof WebhookEvent) {
                 $event->forceFill(['status' => 'failed', 'error' => $e->getMessage()])->save();
@@ -109,6 +66,75 @@ class ZohoPaymentWebhookService
         }
     }
 
+    private function processEvent(WebhookEvent $event, Request $request, array $payload, array $normalized): array
+    {
+        $event->forceFill([
+            'event_type' => $event->event_type ?: $normalized['event_type'],
+            'external_event_id' => $event->external_event_id ?: ($normalized['external_event_id'] ?? null),
+            'payment_link_id' => $event->payment_link_id ?: ($normalized['payment_link_id'] ?? null),
+            'payment_id' => $event->payment_id ?: ($normalized['payment_id'] ?? null),
+            'payload' => $payload,
+            'headers' => $this->safeHeaders($request),
+            'status' => 'processing',
+            'processed_at' => null,
+            'error' => null,
+        ])->save();
+
+        Log::info('zoho_payment_webhook_lookup_started', $this->context($event, $normalized));
+        $registration = $this->findRegistration($payload, $normalized, $event);
+        if (! $registration) {
+            $lookupError = $this->lastLookupError ?: 'Registration not found for webhook.';
+            $event->forceFill(['status' => 'ignored', 'processed_at' => now(), 'error' => $lookupError])->save();
+            Log::warning('zoho_payment_webhook_registration_not_found', $this->context($event, $normalized));
+            Log::warning('zoho_payment_webhook_ignored_registration_not_found', $this->context($event, $normalized));
+            return ['message' => 'Webhook received but registration not found.', 'normalized' => $normalized, 'webhook_event_id' => $event->id, 'registration_found' => false, 'error' => $lookupError];
+        }
+
+        $event->forceFill([
+            'registration_id' => $registration->id,
+            'payment_link_id' => $event->payment_link_id ?: ($normalized['payment_link_id'] ?: ($normalized['parsed_payment_link_id'] ?? $registration->zoho_payment_link_id)),
+            'payment_id' => $normalized['payment_id'] ?: $event->payment_id,
+            'status' => 'processing',
+        ])->save();
+        $normalized['registration_id'] = (string) $registration->id;
+        Log::info('zoho_payment_webhook_registration_found', $this->context($event, $normalized));
+        Log::info('zoho_payment_webhook_registration_found_final', $this->context($event, $normalized));
+
+        $status = strtolower((string) ($normalized['status'] ?? ''));
+        $type = strtolower((string) ($normalized['event_type'] ?? ''));
+        if (str_contains($type, 'cancel') || str_contains($type, 'expired') || in_array($status, ['cancelled', 'canceled', 'expired'], true)) {
+            $this->markCancelledOrExpired($registration, $payload, str_contains($type.$status, 'expired') ? 'expired' : 'cancelled');
+            $event->forceFill(['status' => 'processed', 'processed_at' => now(), 'error' => null])->save();
+            Log::info('zoho_payment_webhook_cancelled_or_expired', $this->context($event, $normalized));
+            Log::info('zoho_payment_webhook_processed', $this->context($event, $normalized));
+            return ['message' => 'Webhook received.', 'normalized' => $normalized, 'webhook_event_id' => $event->id, 'registration_found' => true];
+        }
+
+        if ($this->isAlreadyFullySynced($registration)) {
+            $event->forceFill(['status' => 'processed', 'processed_at' => now(), 'error' => null])->save();
+            Log::info('zoho_payment_webhook_processed', $this->context($event, $normalized));
+            return ['message' => 'Webhook already processed.', 'normalized' => $normalized, 'webhook_event_id' => $event->id, 'registration_found' => true, 'registration_id' => (string) $registration->id];
+        }
+
+        if ($this->isPaidWebhook($normalized)) {
+            Log::info('zoho_payment_webhook_sync_started', $this->context($event, $normalized));
+            $this->primePaidFields($registration, $payload, $normalized);
+            $this->paymentSync->syncRegistrationPayment($registration->fresh(['event', 'occurrence', 'user']), [
+                'source' => 'zoho_webhook',
+                'webhook_event_id' => $event->id,
+                'payload' => $payload,
+                'payment_id' => $normalized['payment_id'] ?? null,
+            ]);
+            $event->forceFill(['status' => 'processed', 'processed_at' => now(), 'error' => null])->save();
+            Log::info('zoho_payment_webhook_sync_success', $this->context($event, $normalized));
+            Log::info('zoho_payment_webhook_processed', $this->context($event, $normalized));
+        } else {
+            $event->forceFill(['status' => 'ignored', 'processed_at' => now(), 'error' => 'Unsupported webhook event/status.'])->save();
+        }
+
+        return ['message' => 'Webhook received.', 'normalized' => $normalized, 'webhook_event_id' => $event->id, 'registration_found' => true, 'registration_id' => $normalized['registration_id'] ?? null];
+    }
+
     public function verify(Request $request): bool
     {
         $secret = (string) env('ZOHO_PAYMENT_WEBHOOK_SECRET', '');
@@ -129,9 +155,22 @@ class ZohoPaymentWebhookService
 
     public function processStored(WebhookEvent $event): void
     {
-        $fake = Request::create('/internal', 'POST', [], [], [], [], json_encode($event->payload));
+        $payload = (array) ($event->payload ?? []);
+        $normalized = $this->normalizeZohoPaymentWebhookPayload($payload);
+        $normalized['external_event_id'] = $normalized['external_event_id'] ?: $event->external_event_id;
+        $fake = Request::create('/internal', 'POST', [], [], [], [], json_encode($payload));
         $fake->headers->set('Content-Type', 'application/json');
-        $this->handle($fake);
+
+        try {
+            $this->processEvent($event, $fake, $payload, $normalized);
+        } catch (\Throwable $e) {
+            $event->forceFill(['status' => 'failed', 'error' => $e->getMessage()])->save();
+            Log::error('zoho_payment_webhook_sync_failed', $this->context($event, $normalized) + [
+                'exception_message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+        }
     }
 
     public function extract(array $payload): array
@@ -271,7 +310,7 @@ class ZohoPaymentWebhookService
         if (! empty($info['customer_id']) && $info['amount'] !== null) {
             $amount = (float) $info['amount'];
             Log::info('zoho_payment_webhook_lookup_by_customer_amount_start', $this->context($event, $info) + ['amount' => $amount]);
-            $registration = $this->customerRegistrationBaseQuery($info['customer_id'], 7)
+            $candidates = $this->customerRegistrationBaseQuery($info['customer_id'], 7)
                 ->where(function ($query) use ($amount): void {
                     $query->whereRaw('CAST(amount AS NUMERIC) BETWEEN ? AND ?', [$amount - 0.01, $amount + 0.01]);
                     if (Schema::hasColumn('event_registrations', 'payment_amount')) {
@@ -279,10 +318,17 @@ class ZohoPaymentWebhookService
                     }
                 })
                 ->latest('created_at')
-                ->first();
-            if ($registration) {
+                ->limit(2)
+                ->get();
+            if ($candidates->count() === 1) {
+                $registration = $candidates->first();
                 Log::info('zoho_payment_webhook_lookup_by_customer_amount_found', $this->context($event, $info) + ['registration_id' => (string) $registration->id, 'amount' => $amount]);
                 return $registration;
+            }
+            if ($candidates->count() > 1) {
+                $this->lastLookupError = 'Multiple matching registrations found for customer/amount fallback.';
+                Log::warning('zoho_payment_webhook_lookup_multiple_candidates', $this->context($event, $info) + ['candidate_count' => $candidates->count(), 'amount' => $amount]);
+                return null;
             }
             Log::warning('zoho_payment_webhook_lookup_by_customer_amount_failed', $this->context($event, $info) + ['amount' => $amount]);
         }
@@ -301,7 +347,7 @@ class ZohoPaymentWebhookService
             }
         }
 
-        $this->lastLookupError = 'Registration not found for payment webhook.';
+        $this->lastLookupError = 'Registration not found for webhook.';
         return null;
     }
 

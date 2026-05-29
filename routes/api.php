@@ -49,6 +49,7 @@ use App\Http\Controllers\Api\V1\CoinClaimController;
 use App\Http\Controllers\Api\V1\CoinHistoryController;
 use App\Http\Controllers\Api\V1\CoinsController;
 use App\Http\Controllers\Api\V1\CollaborationPostController;
+use App\Http\Controllers\Api\V1\ContactPostController;
 use App\Http\Controllers\Api\V1\CollaborationTypeController;
 use App\Http\Controllers\Api\V1\AdController;
 use App\Http\Controllers\Api\V1\Admin\AppVersionController as AdminAppVersionController;
@@ -209,6 +210,14 @@ Route::prefix('v1')->group(function () {
         Route::post('follows/{follow}/accept', [FollowController::class, 'accept'])->whereUuid('follow');
         Route::post('follows/{follow}/reject', [FollowController::class, 'reject'])->whereUuid('follow');
         Route::delete('follows/{follow}/cancel', [FollowController::class, 'cancel'])->whereUuid('follow');
+
+        // Contact Posts
+        Route::get('/contact-posts', [ContactPostController::class, 'index']);
+        Route::post('/contact-posts', [ContactPostController::class, 'store']);
+        Route::get('/contact-posts/{id}', [ContactPostController::class, 'show'])->whereUuid('id');
+        Route::put('/contact-posts/{id}', [ContactPostController::class, 'update'])->whereUuid('id');
+        Route::patch('/contact-posts/{id}', [ContactPostController::class, 'update'])->whereUuid('id');
+        Route::delete('/contact-posts/{id}', [ContactPostController::class, 'destroy'])->whereUuid('id');
 
         // Collaborations
         Route::get('/collaborations/history', [CollaborationPostController::class, 'history']);

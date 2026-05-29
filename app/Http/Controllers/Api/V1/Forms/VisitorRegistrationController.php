@@ -14,6 +14,14 @@ class VisitorRegistrationController extends BaseApiController
         $authUser = $request->user();
         $data = $request->validated();
 
+        $invitedByType = $data['invited_by_type'] ?? null;
+        $invitedByUserId = in_array($invitedByType, ['circle_member_peer', 'other'], true)
+            ? ($data['invited_by_user_id'] ?? null)
+            : null;
+        $visitorBusinessCategoryId = array_key_exists('visitor_business_category_id', $data) && $data['visitor_business_category_id'] !== null && $data['visitor_business_category_id'] !== ''
+            ? (int) $data['visitor_business_category_id']
+            : null;
+
         $registration = VisitorRegistration::create([
             'user_id' => $authUser->id,
             'event_type' => $data['event_type'],
@@ -24,7 +32,14 @@ class VisitorRegistrationController extends BaseApiController
             'visitor_email' => $data['visitor_email'] ?? null,
             'visitor_city' => $data['visitor_city'],
             'visitor_business' => $data['visitor_business'],
-            'how_known' => $data['how_known'],
+            'visitor_designation' => $data['visitor_designation'] ?? null,
+            'visitor_business_category_id' => $visitorBusinessCategoryId,
+            'visitor_business_category' => $data['visitor_business_category'] ?? null,
+            'visitor_business_website' => $data['visitor_business_website'] ?? null,
+            'visitor_business_brief' => $data['visitor_business_brief'] ?? null,
+            'invited_by_type' => $invitedByType,
+            'invited_by_user_id' => $invitedByUserId,
+            'how_known' => $data['how_known'] ?? $invitedByType,
             'note' => $data['note'] ?? null,
             'status' => 'pending',
             'coins_awarded' => false,
@@ -48,6 +63,13 @@ class VisitorRegistrationController extends BaseApiController
                 'visitor_city' => $registration->visitor_city,
                 'visitor_business' => $registration->visitor_business,
                 'how_known' => $registration->how_known,
+                'visitor_designation' => $registration->visitor_designation,
+                'visitor_business_category_id' => $registration->visitor_business_category_id,
+                'visitor_business_category' => $registration->visitor_business_category,
+                'visitor_business_website' => $registration->visitor_business_website,
+                'visitor_business_brief' => $registration->visitor_business_brief,
+                'invited_by_type' => $registration->invited_by_type,
+                'invited_by_user_id' => $registration->invited_by_user_id,
                 'note' => $registration->note,
             ]
         );
@@ -76,6 +98,13 @@ class VisitorRegistrationController extends BaseApiController
                 'visitor_mobile',
                 'visitor_city',
                 'visitor_business',
+                'visitor_designation',
+                'visitor_business_category_id',
+                'visitor_business_category',
+                'visitor_business_website',
+                'visitor_business_brief',
+                'invited_by_type',
+                'invited_by_user_id',
                 'status',
                 'created_at',
             ])

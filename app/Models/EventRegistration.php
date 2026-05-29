@@ -37,6 +37,16 @@ class EventRegistration extends Model
         'visitor_phone',
         'visitor_company',
         'visitor_city',
+        'visitor_designation',
+        'visitor_business_category_id',
+        'visitor_business_category',
+        'visitor_business_category_main_id',
+        'visitor_business_category_sub_id',
+        'visitor_business_website',
+        'visitor_business_brief',
+        'invited_by_type',
+        'invited_by_user_id',
+        'how_known',
         'zoho_form_entry_id',
         'zoho_payment_id',
         'zoho_payment_status',
@@ -71,6 +81,9 @@ class EventRegistration extends Model
     ];
 
     protected $casts = [
+        'visitor_business_category_id' => 'integer',
+        'visitor_business_category_main_id' => 'integer',
+        'visitor_business_category_sub_id' => 'integer',
         'registered_at' => 'datetime',
         'checked_in_at' => 'datetime',
         'last_qr_scan_at' => 'datetime',
@@ -102,5 +115,49 @@ class EventRegistration extends Model
     public function checkedInBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'checked_in_by_user_id');
+    }
+
+    public function invitedByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'invited_by_user_id');
+    }
+
+    public function businessCategoryMain(): BelongsTo
+    {
+        return $this->belongsTo(CircleCategory::class, 'visitor_business_category_main_id');
+    }
+
+    public function businessCategorySub(): BelongsTo
+    {
+        return $this->belongsTo(CircleCategoryLevel4::class, 'visitor_business_category_sub_id');
+    }
+
+    public function businessCategoryMainPayload(): ?array
+    {
+        return $this->categoryPayload($this->businessCategoryMain);
+    }
+
+    public function businessCategorySubPayload(): ?array
+    {
+        $category = $this->businessCategorySub;
+
+        if (! $category && empty($this->visitor_business_category_sub_id) && ! empty($this->visitor_business_category_id)) {
+            $category = CircleCategoryLevel4::query()->find($this->visitor_business_category_id);
+        }
+
+        return $this->categoryPayload($category);
+    }
+
+    private function categoryPayload($category): ?array
+    {
+        if (! $category) {
+            return null;
+        }
+
+        return [
+            'id' => $category->id,
+            'name' => $category->name,
+            'slug' => $category->slug ?? null,
+        ];
     }
 }

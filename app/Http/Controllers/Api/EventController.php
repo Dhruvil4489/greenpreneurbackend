@@ -378,7 +378,7 @@ class EventController extends BaseApiController
 
     public function paymentStatus(string $registrationId)
     {
-        $registration = EventRegistration::query()->with(['event', 'occurrence', 'user'])->findOrFail($registrationId);
+        $registration = EventRegistration::query()->with(['event', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub'])->findOrFail($registrationId);
 
         if (($registration->payment_gateway ?? '') === 'zoho_billing_payment_link' && ! empty($registration->zoho_payment_link_id)) {
             try {
@@ -419,7 +419,7 @@ class EventController extends BaseApiController
             'razorpay_signature' => ['required', 'string'],
         ]);
 
-        $registration = EventRegistration::query()->with(['event.circle', 'occurrence', 'user'])->findOrFail($registrationId);
+        $registration = EventRegistration::query()->with(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub'])->findOrFail($registrationId);
         if ((string) ($registration->razorpay_order_id ?? '') !== (string) $data['razorpay_order_id']) {
             return $this->error('Payment order does not match this registration.', 422);
         }
@@ -439,7 +439,7 @@ class EventController extends BaseApiController
 
     public function invoice(Request $request, string $registrationId)
     {
-        $registration = EventRegistration::query()->with(['event', 'user'])->findOrFail($registrationId);
+        $registration = EventRegistration::query()->with(['event', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub'])->findOrFail($registrationId);
 
         if ($registration->user_id && $request->user() && $registration->user_id !== $request->user()->id && ! $this->events->canViewAttendance($registration->event, $request->user())) {
             return $this->error('You are not authorized to view this invoice.', 403);
@@ -515,7 +515,7 @@ class EventController extends BaseApiController
         }
 
         $query = EventRegistration::query()
-            ->with(['event.circle', 'occurrence', 'user'])
+            ->with(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub'])
             ->where(function ($q) use ($user): void {
                 $q->where('user_id', $user->id);
                 if ($user->email) {
@@ -557,7 +557,7 @@ class EventController extends BaseApiController
     public function myRegistrations(Request $request)
     {
         $items = EventRegistration::query()
-            ->with(['event.circle', 'occurrence', 'user'])
+            ->with(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub'])
             ->where('user_id', $request->user()->id)
             ->latest('registered_at')
             ->paginate(max(1, min((int) $request->input('per_page', 20), 100)));
@@ -618,7 +618,7 @@ class EventController extends BaseApiController
 
     public function invoices(Request $request)
     {
-        $q = EventRegistration::query()->with(['event', 'occurrence', 'user'])->where('payment_status', 'paid')->latest('created_at');
+        $q = EventRegistration::query()->with(['event', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub'])->where('payment_status', 'paid')->latest('created_at');
         if ($request->filled('payment_status')) $q->where('payment_status', $request->input('payment_status'));
         if ($request->filled('event_id')) $q->where('event_id', $request->input('event_id'));
         if ($request->filled('occurrence_id')) $q->where('occurrence_id', $request->input('occurrence_id'));
@@ -641,7 +641,7 @@ class EventController extends BaseApiController
 
     public function invoiceDetails(Request $request, string $registrationId)
     {
-        $r = EventRegistration::query()->with(['event', 'occurrence', 'user'])->findOrFail($registrationId);
+        $r = EventRegistration::query()->with(['event', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub'])->findOrFail($registrationId);
         if ($r->user_id && $request->user() && $r->user_id !== $request->user()->id && ! $this->events->canViewAttendance($r->event, $request->user())) {
             return $this->error('You are not authorized to view this invoice.', 403);
         }
@@ -687,6 +687,18 @@ class EventController extends BaseApiController
             'zoho_payment_id' => $registration->zoho_payment_id,
             'paid_at' => optional($registration->payment_completed_at)->toISOString(),
             'qr_code_url' => $registration->qr_code_url ?: app(EventQrService::class)->url($registration->qr_code_path),
+            'visitor_designation' => $registration->visitor_designation ?? data_get($registration->metadata, 'visitor_designation'),
+            'visitor_business_category_id' => $registration->visitor_business_category_id ?? data_get($registration->metadata, 'visitor_business_category_id'),
+            'visitor_business_category' => $registration->visitor_business_category ?? data_get($registration->metadata, 'visitor_business_category'),
+            'visitor_business_category_main_id' => $registration->visitor_business_category_main_id ?? data_get($registration->metadata, 'visitor_business_category_main_id'),
+            'visitor_business_category_sub_id' => $registration->visitor_business_category_sub_id ?? data_get($registration->metadata, 'visitor_business_category_sub_id') ?? $registration->visitor_business_category_id ?? data_get($registration->metadata, 'visitor_business_category_id'),
+            'business_category_main' => $registration->businessCategoryMainPayload(),
+            'business_category_sub' => $registration->businessCategorySubPayload(),
+            'visitor_business_website' => $registration->visitor_business_website ?? data_get($registration->metadata, 'visitor_business_website'),
+            'visitor_business_brief' => $registration->visitor_business_brief ?? data_get($registration->metadata, 'visitor_business_brief'),
+            'invited_by_type' => $registration->invited_by_type ?? data_get($registration->metadata, 'invited_by_type'),
+            'invited_by_user_id' => $registration->invited_by_user_id ?? data_get($registration->metadata, 'invited_by_user_id'),
+            'invited_by_user' => $this->invitedByUserPayload($registration->invitedByUser),
             'created_at' => optional($registration->created_at)->toISOString(),
         ];
     }
@@ -740,6 +752,24 @@ class EventController extends BaseApiController
         ];
     }
 
+
+    private function invitedByUserPayload(?\App\Models\User $user): ?array
+    {
+        if (! $user) {
+            return null;
+        }
+
+        return [
+            'id' => $user->id,
+            'display_name' => $user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? '')),
+            'first_name' => $user->first_name,
+            'last_name' => $user->last_name,
+            'company_name' => $user->company_name,
+            'designation' => $user->designation,
+            'profile_photo_url' => $user->profile_photo_url ?? null,
+        ];
+    }
+
     private function isActiveCircleMember(?string $circleId, string $userId): bool
     {
         if (! $circleId) {
@@ -786,6 +816,18 @@ class EventController extends BaseApiController
             'invoice_pdf_url' => $registration->zoho_invoice_pdf_url,
             'registered_at' => optional($registration->registered_at)->toISOString(),
             'checked_in_at' => optional($registration->checked_in_at)->toISOString(),
+            'visitor_designation' => $registration->visitor_designation ?? data_get($registration->metadata, 'visitor_designation'),
+            'visitor_business_category_id' => $registration->visitor_business_category_id ?? data_get($registration->metadata, 'visitor_business_category_id'),
+            'visitor_business_category' => $registration->visitor_business_category ?? data_get($registration->metadata, 'visitor_business_category'),
+            'visitor_business_category_main_id' => $registration->visitor_business_category_main_id ?? data_get($registration->metadata, 'visitor_business_category_main_id'),
+            'visitor_business_category_sub_id' => $registration->visitor_business_category_sub_id ?? data_get($registration->metadata, 'visitor_business_category_sub_id') ?? $registration->visitor_business_category_id ?? data_get($registration->metadata, 'visitor_business_category_id'),
+            'business_category_main' => $registration->businessCategoryMainPayload(),
+            'business_category_sub' => $registration->businessCategorySubPayload(),
+            'visitor_business_website' => $registration->visitor_business_website ?? data_get($registration->metadata, 'visitor_business_website'),
+            'visitor_business_brief' => $registration->visitor_business_brief ?? data_get($registration->metadata, 'visitor_business_brief'),
+            'invited_by_type' => $registration->invited_by_type ?? data_get($registration->metadata, 'invited_by_type'),
+            'invited_by_user_id' => $registration->invited_by_user_id ?? data_get($registration->metadata, 'invited_by_user_id'),
+            'invited_by_user' => $this->invitedByUserPayload($registration->invitedByUser),
             'event' => [
                 'id' => $registration->event?->id,
                 'title' => $registration->event?->title,

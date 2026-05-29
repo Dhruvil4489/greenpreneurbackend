@@ -52,7 +52,7 @@ class EventRegistrationService
                 $this->qr->generateAndStore($existing);
             }
 
-            return $existing->fresh(['event.circle', 'occurrence', 'user']);
+            return $existing->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']);
         }
 
         return $this->createRegistration(
@@ -87,10 +87,10 @@ class EventRegistrationService
             }
 
             if ((bool) ($existing->payment_required ?? false) && ($existing->payment_status ?? null) === 'pending') {
-                return $this->payments->attachCheckout($existing->fresh(['event.circle', 'occurrence', 'user']));
+                return $this->payments->attachCheckout($existing->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']));
             }
 
-            return $existing->fresh(['event.circle', 'occurrence', 'user']);
+            return $existing->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']);
         }
 
         return $this->createRegistration(
@@ -125,10 +125,10 @@ class EventRegistrationService
 
         if ($existing) {
             if ((bool) ($existing->payment_required ?? false) && in_array((string) ($existing->payment_status ?? ''), ['pending', 'failed', 'expired'], true)) {
-                return $this->payments->attachCheckout($existing->fresh(['event.circle', 'occurrence', 'user']));
+                return $this->payments->attachCheckout($existing->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']));
             }
 
-            return $existing->fresh(['event.circle', 'occurrence', 'user']);
+            return $existing->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']);
         }
 
         return $this->createRegistration($event, $occurrence, [
@@ -189,7 +189,7 @@ class EventRegistrationService
                     $this->qr->generateAndStore($existing);
                 }
 
-                return $existing->fresh(['event.circle', 'occurrence', 'user']);
+                return $existing->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']);
             }
 
             return $this->createRegistration($event, $occurrence, $data + ['source' => 'zoho_form', 'registration_type' => 'visitor'], false);
@@ -217,19 +217,53 @@ class EventRegistrationService
         $data['visitor_phone'] = $data['visitor_phone'] ?? $user->phone;
         $data['visitor_company'] = $data['visitor_company'] ?? $user->company_name;
         $data['visitor_city'] = $data['visitor_city'] ?? ($user->city ?? $user->city_of_residence);
+        $data = $this->normalizeVisitorBusinessCategories($data);
+        $invitedByType = $data['invited_by_type'] ?? null;
+        $data['invited_by_user_id'] = in_array($invitedByType, ['circle_member_peer', 'other'], true)
+            ? ($data['invited_by_user_id'] ?? null)
+            : null;
+        if ($invitedByType && empty($data['how_known'])) {
+            $data['how_known'] = $invitedByType;
+        }
+
         $data['metadata'] = array_merge((array) ($data['metadata'] ?? []), array_filter([
-            'designation' => $data['designation'] ?? null,
+            'designation' => $data['visitor_designation'] ?? ($data['designation'] ?? null),
             'business_category_id' => $data['business_category_id'] ?? null,
             'business_sub_category' => $data['business_sub_category'] ?? null,
             'referral_code' => $data['referral_code'] ?? null,
             'referred_by' => $data['referred_by'] ?? null,
             'notes' => $data['notes'] ?? null,
+            'visitor_designation' => $data['visitor_designation'] ?? null,
+            'visitor_business_category_id' => $data['visitor_business_category_id'] ?? null,
+            'visitor_business_category' => $data['visitor_business_category'] ?? null,
+            'visitor_business_category_main_id' => $data['visitor_business_category_main_id'] ?? null,
+            'visitor_business_category_sub_id' => $data['visitor_business_category_sub_id'] ?? null,
+            'visitor_business_website' => $data['visitor_business_website'] ?? null,
+            'visitor_business_brief' => $data['visitor_business_brief'] ?? null,
+            'invited_by_type' => $data['invited_by_type'] ?? null,
+            'invited_by_user_id' => $data['invited_by_user_id'] ?? null,
             'linked_user_id' => (string) $user->id,
         ], fn ($value) => $value !== null && $value !== ''));
 
         foreach (['full_name', 'email', 'phone', 'city', 'company_name', 'designation', 'business_category_id', 'business_sub_category', 'referral_code', 'referred_by', 'notes'] as $key) {
             unset($data[$key]);
         }
+
+        return $data;
+    }
+
+    private function normalizeVisitorBusinessCategories(array $data): array
+    {
+        foreach (['visitor_business_category_id', 'visitor_business_category_main_id', 'visitor_business_category_sub_id'] as $key) {
+            if (array_key_exists($key, $data) && $data[$key] !== null && $data[$key] !== '') {
+                $data[$key] = (int) $data[$key];
+            }
+        }
+
+        if (! array_key_exists('visitor_business_category_sub_id', $data) && array_key_exists('visitor_business_category_id', $data)) {
+            $data['visitor_business_category_sub_id'] = $data['visitor_business_category_id'];
+        }
+
 
         return $data;
     }
@@ -259,7 +293,7 @@ class EventRegistrationService
             'email' => $data['visitor_email'] ?? null,
             'phone' => $data['visitor_phone'] ?? null,
             'company_name' => $data['visitor_company'] ?? ($data['company_name'] ?? null),
-            'designation' => $data['designation'] ?? null,
+            'designation' => $data['visitor_designation'] ?? ($data['designation'] ?? null),
             'city' => $data['visitor_city'] ?? ($data['city'] ?? null),
             'city_of_residence' => $data['visitor_city'] ?? ($data['city'] ?? null),
             'business_category_id' => $data['business_category_id'] ?? null,
@@ -330,20 +364,30 @@ class EventRegistrationService
                     'occurrence_id' => (string) $lockedOccurrence->id,
                     'user_id' => $data['user_id'] ?? $existing->user_id,
                 ]);
-                $updates = $this->filterRegistrationColumns(array_filter([
+                $updates = $this->filterRegistrationColumns([
                     'user_id' => $existing->user_id ?: ($data['user_id'] ?? null),
                     'visitor_name' => $data['visitor_name'] ?? $existing->visitor_name,
                     'visitor_email' => $data['visitor_email'] ?? $existing->visitor_email,
                     'visitor_phone' => $data['visitor_phone'] ?? $existing->visitor_phone,
                     'visitor_company' => $data['visitor_company'] ?? $existing->visitor_company,
                     'visitor_city' => $data['visitor_city'] ?? $existing->visitor_city,
+                    'visitor_designation' => $data['visitor_designation'] ?? $existing->visitor_designation,
+                    'visitor_business_category_id' => $data['visitor_business_category_id'] ?? $existing->visitor_business_category_id,
+                    'visitor_business_category' => $data['visitor_business_category'] ?? $existing->visitor_business_category,
+                    'visitor_business_category_main_id' => $data['visitor_business_category_main_id'] ?? $existing->visitor_business_category_main_id,
+                    'visitor_business_category_sub_id' => $data['visitor_business_category_sub_id'] ?? $existing->visitor_business_category_sub_id,
+                    'visitor_business_website' => $data['visitor_business_website'] ?? $existing->visitor_business_website,
+                    'visitor_business_brief' => $data['visitor_business_brief'] ?? $existing->visitor_business_brief,
+                    'invited_by_type' => $data['invited_by_type'] ?? $existing->invited_by_type,
+                    'invited_by_user_id' => array_key_exists('invited_by_user_id', $data) ? $data['invited_by_user_id'] : $existing->invited_by_user_id,
+                    'how_known' => $data['how_known'] ?? $existing->how_known,
                     'metadata' => array_merge((array) ($existing->metadata ?? []), (array) ($data['metadata'] ?? [])),
-                ], fn ($value) => $value !== null));
+                ]);
                 if (! empty($updates)) {
                     $existing->forceFill($updates)->save();
                 }
 
-                return $existing->fresh(['event.circle', 'occurrence', 'user']);
+                return $existing->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']);
             }
 
             $registrationType = $data['registration_type'] ?? (isset($data['user_id']) ? 'member' : 'visitor');
@@ -366,13 +410,13 @@ class EventRegistrationService
 
             if (! $paymentRequired) {
                 $this->qr->generateAndStore($registration);
-                $registration = $registration->fresh(['event.circle', 'occurrence', 'user']);
+                $registration = $registration->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']);
                 $this->notifySafely($registration);
             }
 
             $lockedOccurrence->forceFill(['registered_count' => $registeredCount + 1])->save();
 
-            return $registration->fresh(['event.circle', 'occurrence', 'user']);
+            return $registration->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']);
         });
 
         if ((bool) ($registration->payment_required ?? false) && in_array((string) ($registration->payment_status ?? ''), ['pending', 'failed', 'expired'], true)) {

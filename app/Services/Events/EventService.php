@@ -174,7 +174,7 @@ class EventService
     public function attendanceReport(Event $event, array $filters = []): array
     {
         $query = EventRegistration::query()
-            ->with(['user', 'occurrence'])
+            ->with(['user', 'occurrence', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub'])
             ->where('event_id', $event->id)
             ->when($filters['occurrence_id'] ?? null, fn ($q, $v) => $q->where('occurrence_id', $v))
             ->when($filters['status'] ?? null, fn ($q, $v) => $q->where('status', $v))
@@ -239,12 +239,31 @@ class EventService
                 'phone' => $registration->visitor_phone,
                 'company' => $registration->visitor_company,
                 'city' => $registration->visitor_city,
+                'designation' => $registration->visitor_designation ?? data_get($registration->metadata, 'visitor_designation'),
+                'business_category_id' => $registration->visitor_business_category_id ?? data_get($registration->metadata, 'visitor_business_category_id'),
+                'business_category' => $registration->visitor_business_category ?? data_get($registration->metadata, 'visitor_business_category'),
+                'business_category_main' => $registration->businessCategoryMainPayload(),
+                'business_category_sub' => $registration->businessCategorySubPayload(),
+                'business_website' => $registration->visitor_business_website ?? data_get($registration->metadata, 'visitor_business_website'),
+                'business_brief' => $registration->visitor_business_brief ?? data_get($registration->metadata, 'visitor_business_brief'),
             ],
             'status' => $registration->status,
             'checkin_status' => $registration->checkin_status,
             'registered_at' => optional($registration->registered_at)->toISOString(),
             'checked_in_at' => optional($registration->checked_in_at)->toISOString(),
             'source' => $registration->source,
+            'visitor_designation' => $registration->visitor_designation ?? data_get($registration->metadata, 'visitor_designation'),
+            'visitor_business_category_id' => $registration->visitor_business_category_id ?? data_get($registration->metadata, 'visitor_business_category_id'),
+            'visitor_business_category' => $registration->visitor_business_category ?? data_get($registration->metadata, 'visitor_business_category'),
+            'visitor_business_category_main_id' => $registration->visitor_business_category_main_id ?? data_get($registration->metadata, 'visitor_business_category_main_id'),
+            'visitor_business_category_sub_id' => $registration->visitor_business_category_sub_id ?? data_get($registration->metadata, 'visitor_business_category_sub_id') ?? $registration->visitor_business_category_id ?? data_get($registration->metadata, 'visitor_business_category_id'),
+            'business_category_main' => $registration->businessCategoryMainPayload(),
+            'business_category_sub' => $registration->businessCategorySubPayload(),
+            'visitor_business_website' => $registration->visitor_business_website ?? data_get($registration->metadata, 'visitor_business_website'),
+            'visitor_business_brief' => $registration->visitor_business_brief ?? data_get($registration->metadata, 'visitor_business_brief'),
+            'invited_by_type' => $registration->invited_by_type ?? data_get($registration->metadata, 'invited_by_type'),
+            'invited_by_user_id' => $registration->invited_by_user_id ?? data_get($registration->metadata, 'invited_by_user_id'),
+            'invited_by_user' => $this->invitedByUserPayload($registration->invitedByUser),
             'payment_gateway' => ($registration->payment_required ?? false) ? (string) config('services.event_payment_gateway', 'zoho') : null,
             'payment_url' => $registration->payment_url ?? $registration->zoho_hosted_page_url ?? null,
             'payment_status' => $registration->payment_status ?? null,
@@ -261,6 +280,24 @@ class EventService
             'zoho_invoice_sync_error' => $registration->zoho_invoice_sync_error ?? null,
             'qr_status' => empty($registration->qr_code_path) && empty($registration->qr_code_url) ? 'not_generated' : 'generated',
             'qr_code_url' => ($registration->payment_required ?? false) && ($registration->payment_status ?? null) !== 'paid' ? null : ($registration->qr_code_url ?: app(EventQrService::class)->url($registration->qr_code_path)),
+        ];
+    }
+
+
+    private function invitedByUserPayload(?User $user): ?array
+    {
+        if (! $user) {
+            return null;
+        }
+
+        return [
+            'id' => $user->id,
+            'display_name' => $user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? '')),
+            'first_name' => $user->first_name,
+            'last_name' => $user->last_name,
+            'company_name' => $user->company_name,
+            'designation' => $user->designation,
+            'profile_photo_url' => $user->profile_photo_url ?? null,
         ];
     }
 

@@ -134,8 +134,8 @@ class AdminOpsController extends BaseApiController
     public function leaderInterestFormShow(string $id): JsonResponse { return $this->success(LeaderInterestSubmission::findOrFail($id)); }
     public function leaderInterestApprove(Request $request, string $id): JsonResponse { $f=LeaderInterestSubmission::findOrFail($id); $f->status='approved'; $f->save(); return $this->success($f); }
     public function leaderInterestReject(Request $request, string $id): JsonResponse { $f=LeaderInterestSubmission::findOrFail($id); $f->status='rejected'; $f->admin_remarks=$request->input('rejection_reason'); $f->save(); return $this->success($f); }
-    public function registerVisitorForms(): JsonResponse { return $this->success(VisitorRegistration::query()->latest('created_at')->paginate(20)); }
-    public function registerVisitorFormShow(string $id): JsonResponse { return $this->success(VisitorRegistration::findOrFail($id)); }
+    public function registerVisitorForms(): JsonResponse { return $this->success(VisitorRegistration::query()->with('invitedByUser')->latest('created_at')->paginate(20)); }
+    public function registerVisitorFormShow(string $id): JsonResponse { return $this->success(VisitorRegistration::with('invitedByUser')->findOrFail($id)); }
     public function registerVisitorStatus(Request $request, string $id): JsonResponse { $x=VisitorRegistration::findOrFail($id); $x->status=$request->validate(['status'=>'required|string'])['status']; $x->save(); return $this->success($x); }
     public function recommendPeerForms(): JsonResponse { return $this->success(PeerRecommendation::query()->latest('created_at')->paginate(20)); }
     public function recommendPeerFormShow(string $id): JsonResponse { return $this->success(PeerRecommendation::findOrFail($id)); }

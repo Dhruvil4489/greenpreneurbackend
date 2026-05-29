@@ -49,7 +49,7 @@ class EventPaymentService
 
         $registration->forceFill($this->filterRegistrationColumns($updates))->save();
 
-        return $registration->fresh(['event.circle', 'occurrence', 'user']);
+        return $registration->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']);
     }
 
     public function attachCheckout(EventRegistration $registration): EventRegistration
@@ -61,9 +61,9 @@ class EventPaymentService
         $gateway = (string) config('services.event_payment_gateway', env('EVENT_PAYMENT_GATEWAY', 'zoho_billing_payment_link'));
         if ($gateway === 'zoho_billing_payment_link') {
             $registration = app(\App\Services\Zoho\ZohoBillingPaymentLinkService::class)
-                ->createPaymentLink($registration->fresh(['event', 'occurrence', 'user']));
+                ->createPaymentLink($registration->fresh(['event', 'occurrence', 'user', 'businessCategoryMain', 'businessCategorySub']));
         } else {
-            $registration = $this->razorpay->createOrder($registration->fresh(['event', 'occurrence', 'user']));
+            $registration = $this->razorpay->createOrder($registration->fresh(['event', 'occurrence', 'user', 'businessCategoryMain', 'businessCategorySub']));
         }
 
         return DB::transaction(function () use ($registration, $gateway): EventRegistration {
@@ -82,7 +82,7 @@ class EventPaymentService
                 'metadata' => $metadata,
             ]))->save();
 
-            return $registration->fresh(['event.circle', 'occurrence', 'user']);
+            return $registration->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']);
         });
     }
 
@@ -119,13 +119,49 @@ class EventPaymentService
                 ? 'Payment required. Please complete Zoho Billing payment.'
                 : 'Event registration successful.'),
             'error' => $zohoLinkFailed ? ($registration->zoho_invoice_sync_error ?? 'Zoho API request failed.') : null,
-        ];
+        ] + $this->visitorRegistrationDetails($registration);
 
         if ($requiresPayment && $gateway === 'razorpay') {
             $payload['razorpay'] = $this->razorpay->checkoutPayload($registration);
         }
 
         return $payload;
+    }
+
+    private function visitorRegistrationDetails(EventRegistration $registration): array
+    {
+        return [
+            'visitor_designation' => $registration->visitor_designation ?? data_get($registration->metadata, 'visitor_designation'),
+            'visitor_business_category_id' => $registration->visitor_business_category_id ?? data_get($registration->metadata, 'visitor_business_category_id'),
+            'visitor_business_category' => $registration->visitor_business_category ?? data_get($registration->metadata, 'visitor_business_category'),
+            'visitor_business_category_main_id' => $registration->visitor_business_category_main_id ?? data_get($registration->metadata, 'visitor_business_category_main_id'),
+            'visitor_business_category_sub_id' => $registration->visitor_business_category_sub_id ?? data_get($registration->metadata, 'visitor_business_category_sub_id') ?? $registration->visitor_business_category_id ?? data_get($registration->metadata, 'visitor_business_category_id'),
+            'business_category_main' => $registration->businessCategoryMainPayload(),
+            'business_category_sub' => $registration->businessCategorySubPayload(),
+            'visitor_business_website' => $registration->visitor_business_website ?? data_get($registration->metadata, 'visitor_business_website'),
+            'visitor_business_brief' => $registration->visitor_business_brief ?? data_get($registration->metadata, 'visitor_business_brief'),
+            'invited_by_type' => $registration->invited_by_type ?? data_get($registration->metadata, 'invited_by_type'),
+            'invited_by_user_id' => $registration->invited_by_user_id ?? data_get($registration->metadata, 'invited_by_user_id'),
+            'invited_by_user' => $this->invitedByUserPayload($registration->invitedByUser),
+        ];
+    }
+
+
+    private function invitedByUserPayload(?User $user): ?array
+    {
+        if (! $user) {
+            return null;
+        }
+
+        return [
+            'id' => $user->id,
+            'display_name' => $user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? '')),
+            'first_name' => $user->first_name,
+            'last_name' => $user->last_name,
+            'company_name' => $user->company_name,
+            'designation' => $user->designation,
+            'profile_photo_url' => $user->profile_photo_url ?? null,
+        ];
     }
 
     private function filterRegistrationColumns(array $data): array

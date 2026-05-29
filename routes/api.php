@@ -49,6 +49,7 @@ use App\Http\Controllers\Api\V1\CoinClaimController;
 use App\Http\Controllers\Api\V1\CoinHistoryController;
 use App\Http\Controllers\Api\V1\CoinsController;
 use App\Http\Controllers\Api\V1\CollaborationPostController;
+use App\Http\Controllers\Api\V1\ContactPostController;
 use App\Http\Controllers\Api\V1\CollaborationTypeController;
 use App\Http\Controllers\Api\V1\AdController;
 use App\Http\Controllers\Api\V1\Admin\AppVersionController as AdminAppVersionController;
@@ -149,6 +150,14 @@ Route::prefix('v1')->group(function () {
     Route::post('/payments/zoho-billing/payment-link/webhook', [ZohoPaymentLinkWebhookController::class, 'handle']);
     Route::post('/webhooks/zoho/payments', [ZohoPaymentWebhookController::class, 'handle']);
     Route::post('/zoho/payments/webhook', [ZohoPaymentWebhookController::class, 'handle']);
+
+    // Contact Posts (public; stores user_id when a valid Sanctum bearer token is present)
+    Route::get('/contact-posts', [ContactPostController::class, 'index']);
+    Route::post('/contact-posts', [ContactPostController::class, 'store']);
+    Route::get('/contact-posts/{id}', [ContactPostController::class, 'show'])->whereUuid('id');
+    Route::put('/contact-posts/{id}', [ContactPostController::class, 'update'])->whereUuid('id');
+    Route::patch('/contact-posts/{id}', [ContactPostController::class, 'update'])->whereUuid('id');
+    Route::delete('/contact-posts/{id}', [ContactPostController::class, 'destroy'])->whereUuid('id');
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/membership-summary', [MembershipSummaryController::class, 'show']);

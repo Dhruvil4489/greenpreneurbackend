@@ -80,6 +80,7 @@ use App\Http\Controllers\Api\V1\Leadership\LeadershipGroupChatController;
 use App\Http\Controllers\Api\V1\LifeImpactHistoryController;
 use App\Http\Controllers\Api\V1\LeaderboardController;
 use App\Http\Controllers\Api\V1\MembershipPlanController;
+use App\Http\Controllers\Api\V1\MyEventQrController;
 use App\Http\Controllers\Api\V1\P2PMeetingRequestController;
 use App\Http\Controllers\Api\V1\PaymentController;
 use App\Http\Controllers\Api\V1\PeerBlockController;
@@ -177,6 +178,7 @@ Route::prefix('v1')->group(function () {
 
     Route::middleware(['auth:sanctum', 'unity.user'])->group(function () {
         Route::get('/membership-summary', [MembershipSummaryController::class, 'show']);
+        Route::get('/my/events-with-qr', [MyEventQrController::class, 'index']);
         Route::get('/users/{user_id}/activity-summary', [UserActivitySummaryController::class, 'summary']);
         Route::get('/users/{user}/posts', [PostController::class, 'userPosts'])->name('users.posts.index');
 

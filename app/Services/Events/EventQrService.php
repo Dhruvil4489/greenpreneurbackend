@@ -2,6 +2,7 @@
 
 namespace App\Services\Events;
 
+use App\Exceptions\QrGenerationException;
 use App\Models\EventRegistration;
 use Endroid\QrCode\Color\Color;
 use Endroid\QrCode\Encoding\Encoding;
@@ -9,9 +10,11 @@ use Endroid\QrCode\ErrorCorrectionLevel;
 use Endroid\QrCode\QrCode;
 use Endroid\QrCode\RoundBlockSizeMode;
 use Endroid\QrCode\Writer\PngWriter;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Throwable;
 
 class EventQrService
 {
@@ -27,8 +30,30 @@ class EventQrService
 
     public function generateAndStore(EventRegistration $registration): array
     {
+        if (! extension_loaded('gd')) {
+            Log::error('event_qr_generation_gd_missing', [
+                'event_registration_id' => (string) $registration->id,
+                'event_id' => (string) $registration->event_id,
+            ]);
+
+            throw QrGenerationException::gdMissing();
+        }
+
         $payload = $this->payload($registration->qr_token);
-        $png = $this->makePng($payload);
+
+        try {
+            $png = $this->makePng($payload);
+        } catch (Throwable $exception) {
+            Log::error('event_qr_generation_failed', [
+                'event_registration_id' => (string) $registration->id,
+                'event_id' => (string) $registration->event_id,
+                'exception' => $exception::class,
+                'message' => $exception->getMessage(),
+            ]);
+
+            throw QrGenerationException::gdMissing();
+        }
+
         $relativePath = 'event-qrcodes/'.$registration->event_id.'/'.$registration->id.'.png';
 
         Storage::disk('public')->put($relativePath, $png);
@@ -60,7 +85,14 @@ class EventQrService
             return null;
         }
 
-        return url(Storage::disk('public')->url($path));
+        $path = ltrim($path, '/');
+        $segments = explode('/', $path);
+
+        if (count($segments) === 3 && $segments[0] === 'event-qrcodes') {
+            return rtrim((string) config('app.url'), '/').'/api/v1/event-qrcodes/'.$segments[1].'/'.$segments[2];
+        }
+
+        return rtrim((string) config('app.url'), '/').'/api/v1/event-qrcodes/'.basename(dirname($path)).'/'.basename($path);
     }
 
     private function makePng(string $payload): string

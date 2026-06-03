@@ -110,8 +110,9 @@
     $eventsManagementMenu = [
         ['label' => 'Events', 'route' => 'admin.events.index'],
         ['label' => 'Event Joining Requests', 'route' => 'admin.event-joining-requests.index'],
+        ['label' => 'Event Scan Credentials', 'route' => 'admin.event-scan-credentials.index'],
     ];
-    $eventsManagementActive = request()->routeIs('admin.events.*') || request()->routeIs('admin.event-joining-requests.*');
+    $eventsManagementActive = request()->routeIs('admin.events.*') || request()->routeIs('admin.event-joining-requests.*') || request()->routeIs('admin.event-scan-credentials.*');
     $navItems = array_values(array_filter($navItems, fn ($item) => ($item['label'] ?? null) !== 'Events Management'));
 @endphp
 

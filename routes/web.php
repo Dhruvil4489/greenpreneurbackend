@@ -40,6 +40,7 @@ use App\Http\Controllers\Admin\LeadSubmissionsController;
 use App\Http\Controllers\Admin\ReferralReportController;
 use App\Http\Controllers\Admin\AdminExecutionController;
 use App\Http\Controllers\Admin\EventManagementController;
+use App\Http\Controllers\Admin\EventScanCredentialController;
 use App\Http\Controllers\Admin\ActivityCreativeController;
 
 Route::get('/', function () {
@@ -147,6 +148,13 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/circles/{circle}/peer-options', [CirclePeersController::class, 'peerOptions'])->name('circles.peer-options');
         Route::put('/circles/{circle}/members/{circleMember}', [CircleMemberController::class, 'update'])->name('circles.members.update');
         Route::delete('/circles/{circle}/members/{circleMember}', [CircleMemberController::class, 'destroy'])->name('circles.members.destroy');
+        Route::get('/event-scan-credentials', [EventScanCredentialController::class, 'index'])->name('event-scan-credentials.index');
+        Route::get('/event-scan-credentials/create', [EventScanCredentialController::class, 'create'])->name('event-scan-credentials.create');
+        Route::post('/event-scan-credentials', [EventScanCredentialController::class, 'store'])->name('event-scan-credentials.store');
+        Route::get('/event-scan-credentials/{eventScanCredential}/edit', [EventScanCredentialController::class, 'edit'])->name('event-scan-credentials.edit');
+        Route::put('/event-scan-credentials/{eventScanCredential}', [EventScanCredentialController::class, 'update'])->name('event-scan-credentials.update');
+        Route::post('/event-scan-credentials/{eventScanCredential}/toggle', [EventScanCredentialController::class, 'toggle'])->name('event-scan-credentials.toggle');
+        Route::post('/event-scan-credentials/{eventScanCredential}/reset-password', [EventScanCredentialController::class, 'resetPassword'])->name('event-scan-credentials.reset-password');
         Route::get('/events', [EventManagementController::class, 'index'])->name('events.index');
         Route::get('/event-joining-requests', [EventManagementController::class, 'joiningRequests'])->name('event-joining-requests.index');
         Route::post('/event-joining-requests/{id}/approve', [EventManagementController::class, 'approveJoiningRequest'])->whereUuid('id')->name('event-joining-requests.approve');

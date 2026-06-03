@@ -321,7 +321,7 @@ class EventRegistrationService
             'occurrence_id' => $registration->occurrence_id,
             'qr_token' => $hasGeneratedQr ? $registration->qr_token : null,
             'qr_payload' => $hasGeneratedQr ? $this->qr->payload($registration->qr_token) : null,
-            'qr_code_url' => $hasGeneratedQr ? ($registration->qr_code_url ?: $this->qr->url($registration->qr_code_path)) : null,
+            'qr_code_url' => $hasGeneratedQr ? ($registration->qr_code_path ? $this->qr->url($registration->qr_code_path) : $registration->qr_code_url) : null,
             'qr_code_svg' => $hasGeneratedQr ? $registration->qr_code_svg : null,
             'status' => $registration->status,
             'checkin_status' => $registration->checkin_status,

@@ -7,6 +7,7 @@ use App\Models\Circle;
 use App\Models\Event;
 use App\Models\EventRegistration;
 use App\Models\EventRegistrationRequest;
+use App\Models\EventQrScanLog;
 use App\Models\FileModel;
 use App\Services\Events\EventOccurrenceGeneratorService;
 use App\Services\Events\EventService;
@@ -173,8 +174,14 @@ class EventManagementController extends Controller
     {
         $event = Event::query()->findOrFail($id);
         $report = $this->events->attendanceReport($event, $request->only(['occurrence_id', 'status', 'checkin_status', 'attendee_type', 'search']));
+        $scanLogs = EventQrScanLog::query()
+            ->with(['user', 'scanner'])
+            ->where('event_id', $event->id)
+            ->latest('scanned_at')
+            ->limit(200)
+            ->get();
 
-        return view('admin.events.attendance', compact('event', 'report'));
+        return view('admin.events.attendance', compact('event', 'report', 'scanLogs'));
     }
 
 

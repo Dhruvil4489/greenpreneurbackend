@@ -31,18 +31,21 @@ class IndustryDirectorDashboardController extends Controller
         $metrics = [
             'total_industry_members' => count($memberIds),
             'active_members' => $this->scopedUsersQuery($memberIds)
+                ->when(Schema::hasColumn('users', 'deleted_at'), fn (Builder $query) => $query->whereNull('deleted_at'))
                 ->where(function (Builder $query): void {
                     $hasActiveColumn = false;
 
                     if (Schema::hasColumn('users', 'status')) {
-                        $query->where('status', 'active');
+                        $query->orWhere('status', 'active');
                         $hasActiveColumn = true;
                     }
 
                     if (Schema::hasColumn('users', 'membership_status')) {
-                        $hasActiveColumn
-                            ? $query->orWhere('membership_status', 'active')
-                            : $query->where('membership_status', 'active');
+                        $query->orWhereIn('membership_status', [
+                            'visitor',
+                            'premium',
+                            'charter',
+                        ]);
                         $hasActiveColumn = true;
                     }
 

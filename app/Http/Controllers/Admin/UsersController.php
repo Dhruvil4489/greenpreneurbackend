@@ -11,12 +11,15 @@ use App\Models\CircleCategoryLevel3;
 use App\Models\CircleCategoryLevel4;
 use App\Models\CircleMember;
 use App\Models\City;
+use App\Models\District;
+use App\Models\State;
 use App\Models\JoinedCircleCategory;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\Membership\MembershipWelcomeEmailService;
 use App\Services\Users\PublicProfileSlugService;
 use App\Support\AdminAccess;
+use App\Support\AdminCircleScope;
 use App\Support\Zoho\ZohoBillingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -239,6 +242,25 @@ class UsersController extends Controller
         $assignedAdminRoles = $adminUserForRoles
             ? $adminUserForRoles->roles()->whereIn('roles.id', $adminRoleIds)->get()
             : collect();
+        $states = Schema::hasTable('states')
+            ? State::query()
+                ->when(Schema::hasColumn('states', 'status'), fn ($query) => $query->where('status', 'active'))
+                ->orderBy('name')
+                ->get(['id', 'name'])
+            : collect();
+        $assignedDedMapping = $adminUserForRoles && Schema::hasTable('admin_ded_districts')
+            ? DB::table('admin_ded_districts')->where('admin_user_id', $adminUserForRoles->id)->first()
+            : null;
+        $assignedDedStateId = $assignedDedMapping->state_id ?? null;
+        $assignedDedDistrictId = $assignedDedMapping->district_id ?? null;
+        $assignedDedDistricts = ($assignedDedStateId && Schema::hasTable('districts') && Schema::hasColumn('districts', 'state_id'))
+            ? District::query()
+                ->where('state_id', $assignedDedStateId)
+                ->when(Schema::hasColumn('districts', 'status'), fn ($query) => $query->where('status', 'active'))
+                ->orderBy('name')
+                ->get(['id', 'name'])
+            : collect();
+
         $circles = Circle::query()
             ->orderBy('name')
             ->get(['id', 'name', 'zoho_addon_code', 'zoho_addon_name']);
@@ -315,6 +337,10 @@ class UsersController extends Controller
             'user' => $user,
             'cities' => $cities,
             'roles' => $roles,
+            'states' => $states,
+            'assignedDedStateId' => $assignedDedStateId,
+            'assignedDedDistrictId' => $assignedDedDistrictId,
+            'assignedDedDistricts' => $assignedDedDistricts,
             'membershipStatuses' => $membershipStatuses,
             'circles' => $circles,
             'joinedCircleId' => $joinedCircleId,
@@ -432,9 +458,65 @@ class UsersController extends Controller
             'circle_meeting_frequency' => ['nullable', 'string', 'max:50'],
             'role_ids' => ['array', 'max:1'],
             'role_ids.*' => ['exists:roles,id', Rule::in($adminRoleIds)],
+            'ded_state_id' => ['nullable', 'uuid'],
+            'ded_district_id' => ['nullable', 'uuid'],
         ], [
             'role_ids.max' => 'You can not assign multiple roles.',
         ]);
+
+        $dedRoleId = Role::query()->where('key', 'ded')->value('id');
+        $isDedSelectedForValidation = $dedRoleId && in_array($dedRoleId, (array) $request->input('role_ids', []), true);
+        if ($isDedSelectedForValidation) {
+            $request->validate([
+                'ded_state_id' => [
+                    'required',
+                    'uuid',
+                    function (string $attribute, mixed $value, \Closure $fail): void {
+                        if (! Schema::hasTable('admin_ded_districts') || ! Schema::hasColumn('admin_ded_districts', 'state_id')) {
+                            $fail('DED assignment storage is not available. Please run the provided manual SQL before assigning DED.');
+                            return;
+                        }
+
+                        if (! Schema::hasTable('states')) {
+                            $fail('State data is not available. Please run the provided manual SQL before assigning DED.');
+                            return;
+                        }
+
+                        $exists = State::query()
+                            ->whereKey($value)
+                            ->when(Schema::hasColumn('states', 'status'), fn ($query) => $query->where('status', 'active'))
+                            ->exists();
+
+                        if (! $exists) {
+                            $fail('Please select a valid active state when assigning the DED role.');
+                        }
+                    },
+                ],
+                'ded_district_id' => [
+                    'required',
+                    'uuid',
+                    function (string $attribute, mixed $value, \Closure $fail) use ($request): void {
+                        if (! Schema::hasTable('districts') || ! Schema::hasColumn('districts', 'state_id')) {
+                            $fail('District data is not available. Please run the provided manual SQL before assigning DED.');
+                            return;
+                        }
+
+                        $exists = District::query()
+                            ->whereKey($value)
+                            ->where('state_id', $request->input('ded_state_id'))
+                            ->when(Schema::hasColumn('districts', 'status'), fn ($query) => $query->where('status', 'active'))
+                            ->exists();
+
+                        if (! $exists) {
+                            $fail('Please select a valid active district for the selected state.');
+                        }
+                    },
+                ],
+            ], [
+                'ded_state_id.required' => 'Please select a state when assigning the DED role.',
+                'ded_district_id.required' => 'Please select a district when assigning the DED role.',
+            ]);
+        }
 
         if ($request->has('add_circle_membership') && filled($validated['additional_circle_id'] ?? null)) {
             $alreadyJoined = CircleMember::query()
@@ -495,6 +577,8 @@ class UsersController extends Controller
         // Manual test: update a user to inactive and verify admin list shows "Inactive".
         $updatableExclusions = [
             'role_ids',
+            'ded_state_id',
+            'ded_district_id',
             'profile_photo_file_id',
             'cover_photo_file_id',
             'status',
@@ -751,9 +835,44 @@ class UsersController extends Controller
                         ->unique()
                         ->values()
                         ->all();
+                    $dedRoleId = Role::query()->where('key', 'ded')->value('id');
+                    $isDedSelected = $dedRoleId && in_array($dedRoleId, $selectedRoleIds, true);
 
                     $adminUser->roles()->detach(array_values(array_diff($adminRoleIds, $selectedRoleIds)));
                     $adminUser->roles()->syncWithoutDetaching($selectedRoleIds);
+
+                    if (Schema::hasTable('admin_ded_districts') && Schema::hasColumn('admin_ded_districts', 'state_id')) {
+                        if ($isDedSelected) {
+                            $dedAssignment = DB::table('admin_ded_districts')
+                                ->where('admin_user_id', $adminUser->id)
+                                ->first();
+
+                            if ($dedAssignment) {
+                                DB::table('admin_ded_districts')
+                                    ->where('admin_user_id', $adminUser->id)
+                                    ->update([
+                                        'user_id' => $user->id,
+                                        'state_id' => $request->input('ded_state_id'),
+                                        'district_id' => $request->input('ded_district_id'),
+                                        'updated_at' => now(),
+                                    ]);
+                            } else {
+                                DB::table('admin_ded_districts')->insert([
+                                    'id' => (string) Str::uuid(),
+                                    'admin_user_id' => $adminUser->id,
+                                    'user_id' => $user->id,
+                                    'state_id' => $request->input('ded_state_id'),
+                                    'district_id' => $request->input('ded_district_id'),
+                                    'created_at' => now(),
+                                    'updated_at' => now(),
+                                ]);
+                            }
+                        } else {
+                            DB::table('admin_ded_districts')->where('admin_user_id', $adminUser->id)->delete();
+                        }
+
+                        Cache::forget('admin-access:ded-location:' . $adminUser->id);
+                    }
                 }
             });
         } catch (ValidationException $exception) {
@@ -893,6 +1012,11 @@ class UsersController extends Controller
             ->all();
 
         $adminUser->roles()->detach($adminRoleIds);
+
+        if (Schema::hasTable('admin_ded_districts')) {
+            DB::table('admin_ded_districts')->where('admin_user_id', $adminUser->id)->delete();
+            Cache::forget('admin-access:ded-location:' . $adminUser->id);
+        }
 
         return back()->with('success', 'Role removed successfully.');
     }
@@ -1478,6 +1602,10 @@ class UsersController extends Controller
                         ->with(['circle:id,name']);
                 },
             ]);
+
+        if (AdminAccess::isDed(Auth::guard('admin')->user())) {
+            AdminCircleScope::applyToUsersQuery($query, Auth::guard('admin')->user());
+        }
 
         if ($isCircleScoped && is_array($allowedCircleIds)) {
             if ($allowedCircleIds === []) {

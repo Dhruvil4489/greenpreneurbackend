@@ -3,13 +3,14 @@
     $adminUser?->loadMissing('roles:key');
     $isSuper = \App\Support\AdminAccess::isSuper($adminUser);
     $isCircleScoped = \App\Support\AdminAccess::isCircleScoped($adminUser);
+    $isDed = \App\Support\AdminAccess::isDed($adminUser);
     $isGlobalAdmin = \App\Support\AdminAccess::isGlobalAdmin($adminUser);
 
-    $dashboardItem = $isCircleScoped
-        ? null
+    $dashboardItem = ($isCircleScoped || $isDed)
+        ? ($isDed ? ['icon' => 'bi-speedometer2', 'label' => 'DED Dashboard', 'route' => 'admin.ded.dashboard'] : null)
         : ['icon' => 'bi-speedometer2', 'label' => 'Dashboard', 'route' => 'admin.dashboard'];
 
-    $navItems = $isCircleScoped
+    $navItems = ($isCircleScoped || $isDed)
         ? [
             ['icon' => 'bi-people', 'label' => 'Peers', 'route' => 'admin.users.index'],
             ['icon' => 'bi-coin', 'label' => 'Coins', 'route' => 'admin.coins.index'],
@@ -52,7 +53,7 @@
             ['icon' => 'bi-gear', 'label' => 'System Settings', 'route' => '#'],
         ];
 
-    $activityMenu = ($isSuper || $isCircleScoped) ? [
+    $activityMenu = ($isSuper || $isCircleScoped || $isDed) ? [
         ['label' => 'Summary', 'route' => 'admin.activities.index'],
         ['label' => 'Testimonials', 'route' => 'admin.activities.testimonials.index'],
         ['label' => 'Requirements', 'route' => 'admin.activities.requirements.index'],
@@ -66,7 +67,7 @@
     ] : [];
 
     $activityActive = request()->routeIs('admin.activities.*') || request()->routeIs('admin.collaborations.*');
-    $referralReportItem = ($isSuper || $isCircleScoped)
+    $referralReportItem = ($isSuper || $isCircleScoped || $isDed)
         ? ['icon' => 'bi-person-lines-fill', 'label' => 'Referral Report', 'route' => 'admin.referral-report.index', 'active_routes' => ['admin.referral-report.*']]
         : null;
     $activityExpanded = $activityActive || ! $isGlobalAdmin;
@@ -222,7 +223,7 @@
                 </div>
             </li>
 
-            @if ($isGlobalAdmin)
+            @if ($isGlobalAdmin || $isDed)
                 <li class="nav-item menu-parent {{ $eventsManagementActive ? 'open' : '' }}">
                     <a class="nav-link d-flex justify-content-between align-items-center {{ $eventsManagementActive ? 'active' : '' }}" data-bs-toggle="collapse" href="#eventsManagementSubmenu" role="button" aria-expanded="{{ $eventsManagementActive ? 'true' : 'false' }}" aria-controls="eventsManagementSubmenu">
                         <span><i class="bi bi-calendar-check me-2"></i>Events Management</span>

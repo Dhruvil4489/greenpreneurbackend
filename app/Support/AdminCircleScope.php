@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Models\AdminUser;
 use App\Models\CircleMember;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -66,6 +67,11 @@ class AdminCircleScope
 
     public static function applyToActivityQuery($query, ?AdminUser $admin, string $primaryColumn, ?string $peerColumn): void
     {
+        if (AdminAccess::isDed($admin)) {
+            self::applyDedDistrictScope($query, $admin, $primaryColumn);
+            return;
+        }
+
         if (! AdminAccess::isCircleScoped($admin)) {
             return;
         }
@@ -84,6 +90,11 @@ class AdminCircleScope
 
     public static function applyToUsersQuery($query, ?AdminUser $admin): void
     {
+        if (AdminAccess::isDed($admin)) {
+            self::applyDedDistrictScope($query, $admin);
+            return;
+        }
+
         if (! AdminAccess::isCircleScoped($admin)) {
             return;
         }
@@ -105,8 +116,121 @@ class AdminCircleScope
         });
     }
 
+    public static function applyDedDistrictScope($query, ?AdminUser $admin, ?string $userColumn = null): void
+    {
+        if (! AdminAccess::isDed($admin)) {
+            return;
+        }
+
+        $location = AdminAccess::assignedDedLocation($admin);
+        $districtId = $location['district_id'] ?? null;
+        $districtName = $location['district_name'] ?? null;
+        $stateName = $location['state_name'] ?? null;
+
+        if (! $districtId || ! Schema::hasTable('cities')) {
+            $query->whereRaw('1=0');
+            return;
+        }
+
+        if ($userColumn) {
+            $query->whereExists(function ($subQuery) use ($userColumn, $districtId, $districtName, $stateName) {
+                $subQuery->selectRaw(1)
+                    ->from('users as ded_scope_users')
+                    ->join('cities as ded_scope_cities', 'ded_scope_cities.id', '=', 'ded_scope_users.city_id')
+                    ->whereColumn('ded_scope_users.id', $userColumn);
+
+                self::applyCityDistrictPredicate($subQuery, 'ded_scope_cities', $districtId, $districtName, $stateName);
+            });
+
+            return;
+        }
+
+        $query->whereExists(function ($subQuery) use ($districtId, $districtName, $stateName) {
+            $subQuery->selectRaw(1)
+                ->from('cities as ded_scope_cities')
+                ->whereColumn('ded_scope_cities.id', 'users.city_id');
+
+            self::applyCityDistrictPredicate($subQuery, 'ded_scope_cities', $districtId, $districtName, $stateName);
+        });
+    }
+
+    private static function applyCityDistrictPredicate($query, string $cityAlias, string $districtId, ?string $districtName, ?string $stateName): void
+    {
+        if (Schema::hasColumn('cities', 'district_id')) {
+            $query->where("{$cityAlias}.district_id", $districtId);
+            return;
+        }
+
+        if (! $districtName || ! Schema::hasColumn('cities', 'district')) {
+            $query->whereRaw('1=0');
+            return;
+        }
+
+        $query->whereRaw("LOWER({$cityAlias}.district) = ?", [mb_strtolower($districtName)]);
+
+        if ($stateName && Schema::hasColumn('cities', 'state')) {
+            $query->whereRaw("LOWER({$cityAlias}.state) = ?", [mb_strtolower($stateName)]);
+        }
+    }
+
+
+    public static function applyToEventsQuery($query, ?AdminUser $admin, string $eventTable = 'events'): void
+    {
+        if (! AdminAccess::isDed($admin)) {
+            return;
+        }
+
+        $location = AdminAccess::assignedDedLocation($admin);
+        $districtId = $location['district_id'] ?? null;
+        $districtName = $location['district_name'] ?? null;
+        $stateName = $location['state_name'] ?? null;
+
+        if (! $districtId) {
+            $query->whereRaw('1=0');
+            return;
+        }
+
+        if (Schema::hasColumn($eventTable, 'district_id')) {
+            $query->where("{$eventTable}.district_id", $districtId);
+            return;
+        }
+
+        if (! Schema::hasColumn($eventTable, 'circle_id') || ! Schema::hasTable('circles') || ! Schema::hasColumn('circles', 'city_id')) {
+            $query->whereRaw('1=0');
+            return;
+        }
+
+        $query->whereExists(function ($subQuery) use ($eventTable, $districtId, $districtName, $stateName) {
+            $subQuery->selectRaw(1)
+                ->from('circles as ded_scope_circles')
+                ->join('cities as ded_scope_cities', 'ded_scope_cities.id', '=', 'ded_scope_circles.city_id')
+                ->whereColumn('ded_scope_circles.id', "{$eventTable}.circle_id");
+
+            self::applyCityDistrictPredicate($subQuery, 'ded_scope_cities', $districtId, $districtName, $stateName);
+        });
+    }
+
+    public static function eventInScope(?AdminUser $admin, string $eventId): bool
+    {
+        if (! AdminAccess::isDed($admin)) {
+            return true;
+        }
+
+        $query = \App\Models\Event::query()->whereKey($eventId);
+        self::applyToEventsQuery($query, $admin);
+
+        return $query->exists();
+    }
+
     public static function userInScope(?AdminUser $admin, string $userId): bool
     {
+        if (AdminAccess::isDed($admin)) {
+            $query = User::query()->whereKey($userId);
+            self::applyDedDistrictScope($query, $admin);
+
+            return $query->exists();
+        }
+
         if (! AdminAccess::isCircleScoped($admin)) {
             return true;
         }

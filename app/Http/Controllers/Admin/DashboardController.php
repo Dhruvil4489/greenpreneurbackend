@@ -5,8 +5,11 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Circle;
 use App\Models\User;
+use App\Support\AdminAccess;
+use App\Support\AdminCircleScope;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
@@ -67,6 +70,93 @@ class DashboardController extends Controller
         return view('admin.dashboard', [
             'stats' => $stats,
             'pendingItems' => $pendingItems,
+        ]);
+    }
+
+
+    public function ded(): View
+    {
+        $admin = Auth::guard('admin')->user();
+        abort_unless(AdminAccess::isDed($admin), 403);
+
+        $dedLocation = AdminAccess::assignedDedLocation($admin);
+        $districtId = $dedLocation['district_id'] ?? null;
+        $districtName = $dedLocation['district_name'] ?? null;
+        $stateName = $dedLocation['state_name'] ?? null;
+
+        if (! $districtId || ! $districtName) {
+            return view('admin.ded-dashboard', [
+                'districtName' => null,
+                'stats' => [],
+                'pendingItems' => [],
+                'recentPeers' => collect(),
+            ]);
+        }
+
+        $today = now();
+        $usersQuery = User::query();
+        AdminCircleScope::applyToUsersQuery($usersQuery, $admin);
+
+        $newSignupsQuery = User::query();
+        AdminCircleScope::applyToUsersQuery($newSignupsQuery, $admin);
+
+        $activeCirclesQuery = Circle::query();
+        if (Schema::hasColumn('circles', 'district_id')) {
+            $activeCirclesQuery->where('district_id', $districtId);
+        } elseif (Schema::hasColumn('circles', 'city_id') && Schema::hasTable('cities')) {
+            $activeCirclesQuery->whereExists(function ($subQuery) use ($districtId, $districtName, $stateName) {
+                $subQuery->selectRaw(1)
+                    ->from('cities as ded_scope_cities')
+                    ->whereColumn('ded_scope_cities.id', 'circles.city_id');
+
+                if (Schema::hasColumn('cities', 'district_id')) {
+                    $subQuery->where('ded_scope_cities.district_id', $districtId);
+                } elseif (Schema::hasColumn('cities', 'district')) {
+                    $subQuery->whereRaw('LOWER(ded_scope_cities.district) = ?', [mb_strtolower($districtName)]);
+
+                    if ($stateName && Schema::hasColumn('cities', 'state')) {
+                        $subQuery->whereRaw('LOWER(ded_scope_cities.state) = ?', [mb_strtolower($stateName)]);
+                    }
+                } else {
+                    $subQuery->whereRaw('1=0');
+                }
+            });
+        } else {
+            $activeCirclesQuery->whereRaw('1=0');
+        }
+
+        if (Schema::hasColumn('circles', 'status')) {
+            $activeCirclesQuery->where('status', 'active');
+        }
+
+        $activitiesToday = 0;
+        if ($this->hasTableColumn('activities', 'created_at')) {
+            $activityQuery = DB::table('activities')->whereDate('activities.created_at', $today->toDateString());
+            AdminCircleScope::applyToActivityQuery($activityQuery, $admin, 'activities.user_id', null);
+            $activitiesToday = $activityQuery->count();
+        }
+
+        $recentPeersQuery = User::query()->with('city')->latest('created_at')->limit(8);
+        AdminCircleScope::applyToUsersQuery($recentPeersQuery, $admin);
+
+        $stats = [
+            'total_users' => (int) $usersQuery->count(),
+            'active_circles' => (int) $activeCirclesQuery->count(),
+            'new_signups' => (int) $newSignupsQuery->whereDate('users.created_at', $today->toDateString())->count(),
+            'activities_today' => (int) $activitiesToday,
+        ];
+
+        $pendingItems = [
+            ['title' => 'Pending Activities Today', 'count' => (int) $activitiesToday],
+            ['title' => 'District Peers', 'count' => $stats['total_users']],
+            ['title' => 'Active District Circles', 'count' => $stats['active_circles']],
+        ];
+
+        return view('admin.ded-dashboard', [
+            'districtName' => $districtName,
+            'stats' => $stats,
+            'pendingItems' => $pendingItems,
+            'recentPeers' => $recentPeersQuery->get(),
         ]);
     }
 

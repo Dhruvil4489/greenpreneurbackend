@@ -7,6 +7,7 @@ use App\Models\CircleCategoryLevel2;
 use App\Models\CircleCategoryLevel3;
 use App\Models\CircleCategoryLevel4;
 use App\Support\AdminAccess;
+use App\Support\AdminCircleScope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -107,6 +108,12 @@ class CircleJoinRequest extends Model
         }
 
         if (AdminAccess::isSuper($adminUser)) {
+            return $query;
+        }
+
+        if (AdminAccess::isDed($adminUser)) {
+            AdminCircleScope::applyToActivityQuery($query, $adminUser, 'circle_join_requests.user_id', null);
+
             return $query;
         }
 

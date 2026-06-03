@@ -11,11 +11,14 @@ use App\Models\FileModel;
 use App\Services\Events\EventOccurrenceGeneratorService;
 use App\Services\Events\EventService;
 use App\Services\Events\EventZohoInvoiceSyncService;
+use App\Support\AdminAccess;
+use App\Support\AdminCircleScope;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
 class EventManagementController extends Controller
@@ -28,7 +31,7 @@ class EventManagementController extends Controller
 
     public function index(Request $request): View
     {
-        $events = Event::query()
+        $query = Event::query()
             ->with('circle')
             ->withCount(['registrations as registered_count' => fn ($q) => $q->where('status', '!=', 'cancelled')])
             ->withCount(['registrations as checked_in_count' => fn ($q) => $q->where('checkin_status', 'checked_in')])
@@ -37,7 +40,11 @@ class EventManagementController extends Controller
             ->when($request->mode, fn ($q, $v) => $q->where('mode', $v))
             ->when($request->date_from, fn ($q, $v) => $q->where('start_at', '>=', $v))
             ->when($request->date_to, fn ($q, $v) => $q->where('start_at', '<=', $v))
-            ->when($request->search, fn ($q, $v) => $q->where('title', 'ilike', '%'.$v.'%'))
+            ->when($request->search, fn ($q, $v) => $q->where('title', 'ilike', '%'.$v.'%'));
+
+        AdminCircleScope::applyToEventsQuery($query, Auth::guard('admin')->user());
+
+        $events = $query
             ->latest('start_at')
             ->paginate(20)
             ->withQueryString();
@@ -79,7 +86,18 @@ class EventManagementController extends Controller
                 });
             });
 
+        if (AdminAccess::isDed(Auth::guard('admin')->user())) {
+            $query->whereHas('event', function ($eventQuery): void {
+                AdminCircleScope::applyToEventsQuery($eventQuery, Auth::guard('admin')->user());
+            });
+        }
+
         $summaryBase = EventRegistrationRequest::query();
+        if (AdminAccess::isDed(Auth::guard('admin')->user())) {
+            $summaryBase->whereHas('event', function ($eventQuery): void {
+                AdminCircleScope::applyToEventsQuery($eventQuery, Auth::guard('admin')->user());
+            });
+        }
         $summary = [
             'pending' => (clone $summaryBase)->where('status', 'pending')->count(),
             'approved' => (clone $summaryBase)->where('status', 'approved')->count(),
@@ -88,7 +106,9 @@ class EventManagementController extends Controller
         ];
 
         $requests = $query->latest('created_at')->paginate((int) $request->input('per_page', 20))->withQueryString();
-        $events = Event::query()->orderBy('title')->get(['id', 'title']);
+        $eventsQuery = Event::query()->orderBy('title');
+        AdminCircleScope::applyToEventsQuery($eventsQuery, Auth::guard('admin')->user());
+        $events = $eventsQuery->get(['id', 'title']);
 
         return view('admin.events.joining-requests', compact('requests', 'summary', 'events', 'status'));
     }
@@ -96,6 +116,7 @@ class EventManagementController extends Controller
     public function approveJoiningRequest(Request $request, string $id): RedirectResponse
     {
         $joiningRequest = EventRegistrationRequest::query()->findOrFail($id);
+        abort_unless($this->canAccessEvent((string) $joiningRequest->event_id), 403);
         $joiningRequest->forceFill([
             'status' => 'approved',
             'admin_note' => $request->input('admin_note', 'Approved for cross-circle event registration.'),
@@ -110,6 +131,7 @@ class EventManagementController extends Controller
     {
         $data = $request->validate(['admin_note' => ['required', 'string', 'max:2000']]);
         $joiningRequest = EventRegistrationRequest::query()->findOrFail($id);
+        abort_unless($this->canAccessEvent((string) $joiningRequest->event_id), 403);
         $joiningRequest->forceFill([
             'status' => 'rejected',
             'admin_note' => $data['admin_note'],
@@ -122,12 +144,15 @@ class EventManagementController extends Controller
 
     public function create(): View
     {
+        abort_if(AdminAccess::isDed(Auth::guard('admin')->user()), 403);
+
         return view('admin.events.create', ['circles' => Circle::query()->orderBy('name')->get(['id', 'name'])]);
     }
 
     public function edit(string $id): View
     {
         $event = Event::query()->findOrFail($id);
+        abort_unless($this->canAccessEvent((string) $event->id), 403);
 
         return view('admin.events.create', [
             'event' => $event,
@@ -137,6 +162,8 @@ class EventManagementController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        abort_if(AdminAccess::isDed(Auth::guard('admin')->user()), 403);
+
         $data = $this->prepareEventData($request, $this->validated($request));
         $event = DB::transaction(function () use ($data): Event {
             $event = Event::query()->create($this->filterColumns($this->withDefaults($data)));
@@ -151,6 +178,7 @@ class EventManagementController extends Controller
     public function update(Request $request, string $id): RedirectResponse
     {
         $event = Event::query()->findOrFail($id);
+        abort_unless($this->canAccessEvent((string) $event->id), 403);
         $data = $this->prepareEventData($request, $this->validated($request), $event);
 
         DB::transaction(function () use ($event, $data): void {
@@ -165,6 +193,7 @@ class EventManagementController extends Controller
     public function show(string $id): View
     {
         $event = Event::query()->with(['circle', 'occurrences' => fn ($q) => $q->orderBy('start_at'), 'registrations.user', 'registrations.occurrence'])->findOrFail($id);
+        abort_unless($this->canAccessEvent((string) $event->id), 403);
 
         return view('admin.events.show', compact('event'));
     }
@@ -172,6 +201,7 @@ class EventManagementController extends Controller
     public function attendance(Request $request, string $id): View
     {
         $event = Event::query()->findOrFail($id);
+        abort_unless($this->canAccessEvent((string) $event->id), 403);
         $report = $this->events->attendanceReport($event, $request->only(['occurrence_id', 'status', 'checkin_status', 'attendee_type', 'search']));
 
         return view('admin.events.attendance', compact('event', 'report'));
@@ -181,9 +211,15 @@ class EventManagementController extends Controller
     public function syncZohoInvoice(string $registrationId): RedirectResponse
     {
         $registration = EventRegistration::query()->with(['event', 'occurrence', 'user'])->findOrFail($registrationId);
+        abort_unless($this->canAccessEvent((string) $registration->event_id), 403);
         $this->zohoInvoiceSync->sync($registration);
 
         return back()->with('success', 'Zoho invoice sync queued/completed for registration.');
+    }
+
+    private function canAccessEvent(string $eventId): bool
+    {
+        return AdminCircleScope::eventInScope(Auth::guard('admin')->user(), $eventId);
     }
 
     private function validated(Request $request): array

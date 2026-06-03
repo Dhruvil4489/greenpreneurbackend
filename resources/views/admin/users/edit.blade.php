@@ -647,6 +647,7 @@
                                            name="role_ids[]"
                                            value="{{ $role->id }}"
                                            id="role-{{ $role->id }}"
+                                           data-role-key="{{ $role->key }}"
                                            @checked(in_array($role->id, $currentRoleIds))
                                            @disabled($hasAssignedAdminRole)>
                                     <label class="form-check-label" for="role-{{ $role->id }}">
@@ -657,6 +658,63 @@
                             </div>
                         @endforeach
                     </div>
+
+                    @php
+                        $selectedDedStateId = old('ded_state_id', $assignedDedStateId);
+                        $selectedDedDistrictId = old('ded_district_id', $assignedDedDistrictId);
+                        $dedRoleId = optional($roles->firstWhere('key', 'ded'))->id;
+                        $showDedDistrict = $dedRoleId && in_array($dedRoleId, (array) $currentRoleIds);
+                    @endphp
+                    <div id="dedDistrictField" class="row g-2 mt-3 {{ $showDedDistrict ? '' : 'd-none' }}">
+                        <div class="col-md-6">
+                            <label class="form-label" for="dedStateId">DED State <span class="text-danger">*</span></label>
+                            <select
+                                id="dedStateId"
+                                name="ded_state_id"
+                                class="form-select @error('ded_state_id') is-invalid @enderror"
+                                @disabled($hasAssignedAdminRole)
+                            >
+                                <option value="">Select state</option>
+                                @foreach ($states as $state)
+                                    <option value="{{ $state->id }}" @selected((string) $selectedDedStateId === (string) $state->id)>
+                                        {{ $state->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('ded_state_id')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="dedDistrictId">DED District <span class="text-danger">*</span></label>
+                            <select
+                                id="dedDistrictId"
+                                name="ded_district_id"
+                                class="form-select @error('ded_district_id') is-invalid @enderror"
+                                @disabled($hasAssignedAdminRole || ! $selectedDedStateId)
+                            >
+                                <option value="">{{ $selectedDedStateId ? 'Select district' : 'Select state first' }}</option>
+                                @foreach ($assignedDedDistricts as $district)
+                                    <option value="{{ $district->id }}" @selected((string) $selectedDedDistrictId === (string) $district->id)>
+                                        {{ $district->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('ded_district_id')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        @if ($states->isEmpty())
+                            <div class="col-12">
+                                <div class="form-text text-warning">No active states are available. Please run the provided manual SQL before assigning DED.</div>
+                            </div>
+                        @else
+                            <div class="col-12">
+                                <div class="form-text">State and district are required only when assigning the DED role.</div>
+                            </div>
+                        @endif
+                    </div>
+
                     @if ($hasAssignedAdminRole)
                         <div class="form-text text-muted mt-2">
                             Remove the existing admin role to assign a new one.
@@ -688,6 +746,89 @@
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+    const roleCheckboxes = Array.from(document.querySelectorAll('input[name="role_ids[]"]'));
+    const dedDistrictField = document.getElementById('dedDistrictField');
+    const dedStateSelect = document.getElementById('dedStateId');
+    const dedDistrictSelect = document.getElementById('dedDistrictId');
+    const selectedDedDistrictId = @json((string) old('ded_district_id', $assignedDedDistrictId));
+    const districtUrlTemplate = @json(route('admin.location.states.districts', ['state' => '__STATE__']));
+
+    function setDistrictOptions(districts, selectedId = '') {
+        if (!dedDistrictSelect) return;
+
+        dedDistrictSelect.innerHTML = '';
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = districts.length ? 'Select district' : 'No districts found for selected state';
+        dedDistrictSelect.appendChild(placeholder);
+
+        districts.forEach((district) => {
+            const option = document.createElement('option');
+            option.value = district.id;
+            option.textContent = district.name;
+            option.selected = String(district.id) === String(selectedId);
+            dedDistrictSelect.appendChild(option);
+        });
+    }
+
+    async function loadDistrictsForState(stateId, selectedId = '') {
+        if (!dedDistrictSelect) return;
+
+        if (!stateId) {
+            setDistrictOptions([]);
+            dedDistrictSelect.disabled = true;
+            return;
+        }
+
+        dedDistrictSelect.disabled = true;
+        dedDistrictSelect.innerHTML = '<option value="">Loading districts...</option>';
+
+        try {
+            const response = await fetch(districtUrlTemplate.replace('__STATE__', encodeURIComponent(stateId)), {
+                headers: { 'Accept': 'application/json' },
+            });
+            const payload = await response.json();
+            const districts = Array.isArray(payload.data) ? payload.data : [];
+            setDistrictOptions(districts, selectedId);
+            dedDistrictSelect.disabled = false;
+        } catch (error) {
+            setDistrictOptions([]);
+            dedDistrictSelect.disabled = false;
+        }
+    }
+
+    function updateDedDistrictVisibility() {
+        const dedSelected = roleCheckboxes.some((checkbox) => checkbox.dataset.roleKey === 'ded' && checkbox.checked);
+
+        if (dedDistrictField) {
+            dedDistrictField.classList.toggle('d-none', !dedSelected);
+        }
+
+        if (dedStateSelect) {
+            dedStateSelect.required = dedSelected && !dedStateSelect.disabled;
+            if (!dedSelected && !dedStateSelect.disabled) {
+                dedStateSelect.value = '';
+            }
+        }
+
+        if (dedDistrictSelect) {
+            dedDistrictSelect.required = dedSelected && !dedDistrictSelect.disabled;
+            if (!dedSelected && !dedDistrictSelect.disabled) {
+                setDistrictOptions([]);
+                dedDistrictSelect.disabled = true;
+            }
+        }
+    }
+
+    dedStateSelect?.addEventListener('change', function () {
+        loadDistrictsForState(this.value);
+    });
+    roleCheckboxes.forEach((checkbox) => checkbox.addEventListener('change', updateDedDistrictVisibility));
+    updateDedDistrictVisibility();
+
+    if (dedStateSelect?.value && dedDistrictSelect && !dedDistrictSelect.disabled && dedDistrictSelect.options.length <= 1) {
+        loadDistrictsForState(dedStateSelect.value, selectedDedDistrictId);
+    }
     const joinedInput = document.querySelector('[name="circle_joined_date"]')
         || document.querySelector('[name="circle_joined_at"]');
     const expiryInput = document.querySelector('[name="circle_expiry_date"]')

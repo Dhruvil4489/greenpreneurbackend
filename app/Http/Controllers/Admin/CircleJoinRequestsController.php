@@ -11,6 +11,7 @@ use App\Models\CircleCategoryLevel4;
 use App\Models\CircleJoinRequest;
 use App\Services\Circles\CircleJoinRequestService;
 use App\Support\AdminAccess;
+use App\Support\AdminCircleScope;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -246,6 +247,10 @@ class CircleJoinRequestsController extends Controller
     {
         if (AdminAccess::isGlobalAdmin($admin)) {
             return true;
+        }
+
+        if (AdminAccess::isDed($admin)) {
+            return AdminCircleScope::userInScope($admin, (string) $record->user_id);
         }
 
         $allowedCircleIds = AdminAccess::allowedCircleIds($admin);

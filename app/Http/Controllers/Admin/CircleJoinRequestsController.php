@@ -137,7 +137,7 @@ class CircleJoinRequestsController extends Controller
         return $this->runAction($id, function (CircleJoinRequest $record, $admin, $actor): void {
             abort_unless($this->canApproveDed($admin, $actor, $record), 403);
             $this->approveRequestByDed($record, $admin, $actor);
-        });
+        }, 'DED approval completed successfully.');
     }
 
     public function rejectId(Request $request, string $id): RedirectResponse
@@ -150,7 +150,7 @@ class CircleJoinRequestsController extends Controller
         });
     }
 
-    private function runAction(string $id, callable $callback): RedirectResponse
+    private function runAction(string $id, callable $callback, string $successMessage = 'Action completed successfully.'): RedirectResponse
     {
         $admin = Auth::guard('admin')->user();
         $actor = AdminAccess::resolveAppUser($admin);
@@ -172,7 +172,7 @@ class CircleJoinRequestsController extends Controller
                 'admin_user_id' => $admin->id ?? null,
             ]);
 
-            return back()->with('success', 'Action completed successfully.');
+            return back()->with('success', $successMessage);
         } catch (ValidationException $exception) {
             return back()->withErrors($exception->errors());
         }
@@ -228,13 +228,9 @@ class CircleJoinRequestsController extends Controller
             $request = CircleJoinRequest::query()->lockForUpdate()->findOrFail($record->id);
             abort_unless($this->canAccessRecord($admin, $actor, $request), 403);
 
-            if (! in_array((string) $request->status, [
-                CircleJoinRequest::STATUS_PENDING_CD_APPROVAL,
-                CircleJoinRequest::STATUS_PENDING_ID_APPROVAL,
-                CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE,
-            ], true)) {
+            if (! in_array((string) $request->status, $this->dedApprovableStatuses(), true)) {
                 throw ValidationException::withMessages([
-                    'status' => ['DED approval is only available for pending circle joining requests.'],
+                    'status' => ['DED approval is only available while a request is awaiting DED review.'],
                 ]);
             }
 
@@ -371,15 +367,19 @@ class CircleJoinRequestsController extends Controller
             return false;
         }
 
-        if (! in_array((string) $record->status, [
-            CircleJoinRequest::STATUS_PENDING_CD_APPROVAL,
-            CircleJoinRequest::STATUS_PENDING_ID_APPROVAL,
-            CircleJoinRequest::STATUS_PENDING_CIRCLE_FEE,
-        ], true)) {
+        if (! in_array((string) $record->status, $this->dedApprovableStatuses(), true)) {
             return false;
         }
 
         return (string) ($record->ded_approval_status ?? 'pending') !== 'approved';
+    }
+
+    private function dedApprovableStatuses(): array
+    {
+        return [
+            CircleJoinRequest::STATUS_PENDING_CD_APPROVAL,
+            CircleJoinRequest::STATUS_PENDING_ID_APPROVAL,
+        ];
     }
 
     private function hasDedApprovalColumns(): bool

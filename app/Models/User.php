@@ -226,7 +226,9 @@ class User extends Authenticatable
         });
 
         static::saved(function (self $user): void {
-            app(DistrictSyncService::class)->syncFromUser($user);
+            if ($user->wasRecentlyCreated || $user->wasChanged(['city_id', 'city', 'business_city', 'state', 'business_state', 'district'])) {
+                app(DistrictSyncService::class)->syncFromUser($user);
+            }
         });
     }
 

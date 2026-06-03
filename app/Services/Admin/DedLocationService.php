@@ -18,9 +18,12 @@ class DedLocationService
 
     public function getAvailableStates(): Collection
     {
-        $this->syncKnownLocations();
-
         if (! Schema::hasTable('states') || ! Schema::hasColumn('states', 'name')) {
+            return collect();
+        }
+
+        $stateKeysWithData = $this->stateKeysWithData();
+        if ($stateKeysWithData === []) {
             return collect();
         }
 
@@ -30,11 +33,11 @@ class DedLocationService
             ->when(Schema::hasColumn('states', 'status'), fn (Builder $query) => $query->where('status', 'active'))
             ->orderBy('name')
             ->get(['id', 'name'])
-            ->each(function (object $state) use ($unique): void {
+            ->each(function (object $state) use ($unique, $stateKeysWithData): void {
                 $name = $this->districtSyncService->normalizeStateName($state->name ?? null);
                 $key = $this->districtSyncService->stateKey($name);
 
-                if (! $name || $key === '' || $unique->has($key)) {
+                if (! $name || $key === '' || ! in_array($key, $stateKeysWithData, true) || $unique->has($key)) {
                     return;
                 }
 
@@ -52,8 +55,6 @@ class DedLocationService
 
     public function getAvailableDistrictsByState(?string $stateId): Collection
     {
-        $this->syncKnownLocations();
-
         if (! Schema::hasTable('districts') || ! Schema::hasColumn('districts', 'name')) {
             return collect();
         }
@@ -209,6 +210,120 @@ class DedLocationService
         $this->locationsSynced = true;
     }
 
+
+    private function stateKeysWithData(): array
+    {
+        $actualDataKeys = collect();
+
+        $this->appendStateKeysFromTableColumn($actualDataKeys, 'users', 'state');
+        $this->appendStateKeysFromTableColumn($actualDataKeys, 'users', 'business_state');
+        $this->appendStateKeysFromTableColumn($actualDataKeys, 'circles', 'state');
+        $this->appendStateKeysFromCityRelation($actualDataKeys, 'users');
+        $this->appendStateKeysFromCityRelation($actualDataKeys, 'circles');
+        $this->appendStateKeysFromDedAssignments($actualDataKeys);
+
+        $actualDataKeys = $actualDataKeys->filter()->unique()->values();
+        if ($actualDataKeys->isNotEmpty()) {
+            return $actualDataKeys->all();
+        }
+
+        return $this->stateKeysFromCanonicalDistricts();
+    }
+
+    private function appendStateKeysFromTableColumn(Collection $keys, string $table, string $column): void
+    {
+        if (! Schema::hasTable($table) || ! Schema::hasColumn($table, $column)) {
+            return;
+        }
+
+        DB::table($table)
+            ->whereNotNull($column)
+            ->whereRaw("NULLIF(TRIM({$column}), '') IS NOT NULL")
+            ->distinct()
+            ->pluck($column)
+            ->each(function ($stateName) use ($keys): void {
+                $key = $this->districtSyncService->stateKey($stateName);
+                if ($key !== '') {
+                    $keys->push($key);
+                }
+            });
+    }
+
+    private function appendStateKeysFromCityRelation(Collection $keys, string $ownerTable): void
+    {
+        if (! Schema::hasTable($ownerTable) || ! Schema::hasColumn($ownerTable, 'city_id') || ! Schema::hasTable('cities') || ! Schema::hasColumn('cities', 'state')) {
+            return;
+        }
+
+        DB::table($ownerTable)
+            ->join('cities', 'cities.id', '=', $ownerTable . '.city_id')
+            ->whereNotNull('cities.state')
+            ->whereRaw("NULLIF(TRIM(cities.state), '') IS NOT NULL")
+            ->distinct()
+            ->pluck('cities.state')
+            ->each(function ($stateName) use ($keys): void {
+                $key = $this->districtSyncService->stateKey($stateName);
+                if ($key !== '') {
+                    $keys->push($key);
+                }
+            });
+    }
+
+    private function appendStateKeysFromDedAssignments(Collection $keys): void
+    {
+        if (! Schema::hasTable('admin_ded_districts')) {
+            return;
+        }
+
+        if (Schema::hasColumn('admin_ded_districts', 'state_name')) {
+            DB::table('admin_ded_districts')
+                ->whereNotNull('state_name')
+                ->whereRaw("NULLIF(TRIM(state_name), '') IS NOT NULL")
+                ->distinct()
+                ->pluck('state_name')
+                ->each(function ($stateName) use ($keys): void {
+                    $key = $this->districtSyncService->stateKey($stateName);
+                    if ($key !== '') {
+                        $keys->push($key);
+                    }
+                });
+        }
+
+        if (! Schema::hasColumn('admin_ded_districts', 'state_id') || ! Schema::hasTable('states') || ! Schema::hasColumn('states', 'name')) {
+            return;
+        }
+
+        DB::table('admin_ded_districts')
+            ->join('states', 'states.id', '=', 'admin_ded_districts.state_id')
+            ->whereNotNull('admin_ded_districts.state_id')
+            ->distinct()
+            ->pluck('states.name')
+            ->each(function ($stateName) use ($keys): void {
+                $key = $this->districtSyncService->stateKey($stateName);
+                if ($key !== '') {
+                    $keys->push($key);
+                }
+            });
+    }
+
+    private function stateKeysFromCanonicalDistricts(): array
+    {
+        if (! Schema::hasTable('districts') || ! Schema::hasColumn('districts', 'state_id') || ! Schema::hasTable('states') || ! Schema::hasColumn('states', 'name')) {
+            return [];
+        }
+
+        return DB::table('districts')
+            ->join('states', 'states.id', '=', 'districts.state_id')
+            ->when(Schema::hasColumn('districts', 'status'), fn (Builder $query) => $query->where('districts.status', 'active'))
+            ->whereNotNull('districts.state_id')
+            ->distinct()
+            ->pluck('states.name')
+            ->map(fn ($stateName): string => $this->districtSyncService->stateKey($stateName))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
 
     private function equivalentStateIds(string $stateId): array
     {

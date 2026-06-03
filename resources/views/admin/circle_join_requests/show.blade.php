@@ -32,7 +32,7 @@
                         <form method="POST" action="{{ route('admin.circle-joining-requests.reject-id', $record->id) }}" class="d-inline" onsubmit="const r = prompt('Enter rejection reason (required):'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=reason]').value = r.trim(); return true;">@csrf<input type="hidden" name="reason"><button class="btn btn-sm btn-outline-danger">Reject</button></form>
                     @endif
                     @if($canApproveDed)
-                        <form method="POST" action="{{ route('admin.circle-joining-requests.approve-ded', $record->id) }}" class="d-inline">@csrf<button class="btn btn-sm btn-warning">DED Approval</button></form>
+                        <form method="POST" action="{{ route('admin.circle-joining-requests.approve-ded', $record->id) }}" class="d-inline" onsubmit="return confirm('Are you sure you want to approve this request?');">@csrf<button class="btn btn-sm btn-warning">DED Approval</button></form>
                     @endif
                 </div>
             </div>

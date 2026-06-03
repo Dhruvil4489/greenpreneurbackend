@@ -185,7 +185,9 @@ class Circle extends Model
         });
 
         static::saved(function (Circle $circle): void {
-            app(DistrictSyncService::class)->syncFromCircle($circle);
+            if ($circle->wasRecentlyCreated || $circle->wasChanged(['city_id', 'city', 'city_display', 'state', 'district'])) {
+                app(DistrictSyncService::class)->syncFromCircle($circle);
+            }
         });
     }
 

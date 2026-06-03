@@ -69,7 +69,7 @@
                         @endif
 
                         @if($row->can_approve_ded)
-                            <form method="POST" action="{{ route('admin.circle-joining-requests.approve-ded', $row->id) }}" class="d-inline">@csrf<button class="btn btn-sm btn-warning">DED Approval</button></form>
+                            <form method="POST" action="{{ route('admin.circle-joining-requests.approve-ded', $row->id) }}" class="d-inline" onsubmit="return confirm('Are you sure you want to approve this request?');">@csrf<button class="btn btn-sm btn-warning">DED Approval</button></form>
                         @endif
                     </td>
                 </tr>

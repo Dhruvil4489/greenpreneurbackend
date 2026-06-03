@@ -462,8 +462,6 @@ class UsersController extends Controller
         $dedRoleId = Role::query()->where('key', 'ded')->value('id');
         $isDedSelectedForValidation = $dedRoleId && in_array($dedRoleId, (array) $request->input('role_ids', []), true);
         if ($isDedSelectedForValidation) {
-            $this->dedLocationService->syncKnownLocations();
-
             $request->validate([
                 'ded_state_id' => [
                     'required',

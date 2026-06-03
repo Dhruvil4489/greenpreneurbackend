@@ -121,7 +121,9 @@ BEGIN
 END $$;
 
 CREATE INDEX IF NOT EXISTS states_status_idx ON states (status);
+CREATE INDEX IF NOT EXISTS states_lower_name_idx ON states (LOWER(TRIM(name)));
 CREATE INDEX IF NOT EXISTS districts_state_id_idx ON districts (state_id);
+CREATE INDEX IF NOT EXISTS districts_state_id_lower_name_idx ON districts (state_id, LOWER(TRIM(name)));
 CREATE INDEX IF NOT EXISTS districts_status_idx ON districts (status);
 CREATE INDEX IF NOT EXISTS admin_ded_districts_state_id_idx ON admin_ded_districts (state_id);
 CREATE INDEX IF NOT EXISTS admin_ded_districts_district_id_idx ON admin_ded_districts (district_id);

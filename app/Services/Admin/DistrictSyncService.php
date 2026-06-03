@@ -4,6 +4,7 @@ namespace App\Services\Admin;
 
 use App\Models\Circle;
 use App\Models\User;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -14,14 +15,17 @@ class DistrictSyncService
 {
     private const INVALID_EXACT_VALUES = [
         '', '-', '--', 'n/a', 'na', 'none', 'null', 'no city', 'unknown',
-        'east india', 'west india', 'north india', 'south india', 'central india', 'india', 'london',
+        'not available', 'not applicable', 'all india', 'pan india', 'india',
     ];
 
-    private const INVALID_CONTAINS = [
-        ' hotel', 'hotel ', 'resort', 'restaurant', 'private limited', ' pvt', ' ltd',
-        'limited', 'company', 'corporation', 'street', ' road', 'near ', 'opp ', 'opposite',
-        'floor', 'building', 'tower', 'complex', 'mall', 'airport', 'station', 'office',
-    ];
+    public function syncKnownLocations(): void
+    {
+        $this->safely(function (): void {
+            $this->syncFromCitiesTable();
+            $this->syncFromUsersTable();
+            $this->syncFromCirclesTable();
+        });
+    }
 
     public function syncFromUser(User $user): void
     {
@@ -39,9 +43,14 @@ class DistrictSyncService
                 );
             }
 
-            if ($location) {
-                $this->upsertDistrict($location['state'], $location['district']);
+            if (! $location && Schema::hasColumn('users', 'district')) {
+                $location = $this->locationFromDistrictAndState(
+                    $user->getAttribute('district'),
+                    $this->firstFilled($user->getAttribute('state'), $user->getAttribute('business_state')),
+                );
             }
+
+            $this->upsertLocation($location);
         });
     }
 
@@ -56,42 +65,38 @@ class DistrictSyncService
 
             if (! $location) {
                 $city = is_string($circle->getAttribute('city')) ? $circle->getAttribute('city') : $circle->city_display;
-                $location = $this->locationFromCityName($city, null);
+                $location = $this->locationFromCityName($city, $this->attributeIfColumnExists($circle, 'state'));
             }
 
-            if ($location) {
-                $this->upsertDistrict($location['state'], $location['district']);
+            if (! $location && Schema::hasColumn('circles', 'district')) {
+                $location = $this->locationFromDistrictAndState(
+                    $circle->getAttribute('district'),
+                    $this->attributeIfColumnExists($circle, 'state'),
+                );
             }
+
+            $this->upsertLocation($location);
         });
+    }
+
+    public function normalizeStateName(?string $value): ?string
+    {
+        return $this->normalizeLocationName($value, false);
     }
 
     public function normalizeDistrictName(?string $value): ?string
     {
-        $value = preg_replace('/\s+/u', ' ', trim((string) $value));
-        $value = trim($value, '"');
+        return $this->normalizeLocationName($value, true);
+    }
 
-        if ($value === '') {
-            return null;
-        }
+    public function districtKey(?string $value): string
+    {
+        return Str::lower((string) $this->normalizeDistrictName($value));
+    }
 
-        $name = Str::title(Str::lower($value));
-        $key = Str::lower($name);
-
-        if (in_array($key, self::INVALID_EXACT_VALUES, true)) {
-            return null;
-        }
-
-        foreach (self::INVALID_CONTAINS as $needle) {
-            if (str_contains($key, trim($needle))) {
-                return null;
-            }
-        }
-
-        if (mb_strlen($name) > 150 || str_contains($name, ',') || str_contains($name, '\n')) {
-            return null;
-        }
-
-        return $name;
+    public function stateKey(?string $value): string
+    {
+        return Str::lower((string) $this->normalizeStateName($value));
     }
 
     public function upsertDistrict(?string $stateName, ?string $districtName): ?string
@@ -100,7 +105,7 @@ class DistrictSyncService
             return null;
         }
 
-        $stateName = $this->normalizeDistrictName($stateName);
+        $stateName = $this->normalizeStateName($stateName);
         $districtName = $this->normalizeDistrictName($districtName);
 
         if (! $stateName || ! $districtName) {
@@ -108,47 +113,24 @@ class DistrictSyncService
         }
 
         return DB::transaction(function () use ($stateName, $districtName): ?string {
-            $state = DB::table('states')
-                ->whereRaw("LOWER(NULLIF(TRIM(name), '')) = ?", [Str::lower($stateName)])
-                ->first(['id']);
-
-            $now = now();
-
-            if (! $state) {
-                $stateId = (string) Str::uuid();
-                DB::table('states')->insert([
-                    'id' => $stateId,
-                    'name' => $stateName,
-                    'status' => 'active',
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ]);
-            } else {
-                $stateId = (string) $state->id;
-                DB::table('states')
-                    ->where('id', $stateId)
-                    ->update(array_filter([
-                        'name' => $stateName,
-                        'status' => Schema::hasColumn('states', 'status') ? 'active' : null,
-                        'updated_at' => $now,
-                    ], fn ($value) => $value !== null));
+            $stateId = $this->resolveOrCreateStateId($stateName);
+            if (! $stateId) {
+                return null;
             }
 
-            $district = DB::table('districts')
-                ->where('state_id', $stateId)
-                ->whereRaw("LOWER(NULLIF(TRIM(name), '')) = ?", [Str::lower($districtName)])
-                ->first(['id']);
+            $existingDistrict = $this->findDistrictByNormalizedName($stateId, $districtName);
+            $now = now();
 
-            if ($district) {
+            if ($existingDistrict) {
                 DB::table('districts')
-                    ->where('id', $district->id)
+                    ->where('id', $existingDistrict->id)
                     ->update(array_filter([
                         'name' => $districtName,
                         'status' => Schema::hasColumn('districts', 'status') ? 'active' : null,
                         'updated_at' => $now,
                     ], fn ($value) => $value !== null));
 
-                return (string) $district->id;
+                return (string) $existingDistrict->id;
             }
 
             $districtId = (string) Str::uuid();
@@ -165,19 +147,158 @@ class DistrictSyncService
         });
     }
 
+    public function uniqueDistrictRows(Collection $rows): Collection
+    {
+        $unique = collect();
+
+        foreach ($rows as $row) {
+            $name = $this->normalizeDistrictName($row->name ?? null);
+            $key = $this->districtKey($name);
+
+            if (! $name || $key === '' || $unique->has($key)) {
+                continue;
+            }
+
+            $unique->put($key, (object) [
+                'id' => (string) $row->id,
+                'name' => $name,
+                'district_name' => $name,
+                'district_id' => (string) $row->id,
+            ]);
+        }
+
+        return $unique
+            ->values()
+            ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
+            ->values();
+    }
+
+    private function syncFromCitiesTable(): void
+    {
+        if (! Schema::hasTable('cities') || ! Schema::hasColumn('cities', 'state')) {
+            return;
+        }
+
+        $columns = ['name', 'state'];
+        if (Schema::hasColumn('cities', 'district')) {
+            $columns[] = 'district';
+        }
+
+        DB::table('cities')
+            ->select($columns)
+            ->whereNotNull('state')
+            ->orderBy('name')
+            ->chunk(500, function (Collection $cities): void {
+                foreach ($cities as $city) {
+                    $district = $this->normalizeDistrictName($city->district ?? null)
+                        ?: $this->normalizeDistrictName($city->name ?? null);
+                    $this->upsertDistrict($city->state ?? null, $district);
+                }
+            });
+    }
+
+    private function syncFromUsersTable(): void
+    {
+        if (! Schema::hasTable('users')) {
+            return;
+        }
+
+        $columns = array_values(array_filter([
+            'id',
+            Schema::hasColumn('users', 'city_id') ? 'city_id' : null,
+            Schema::hasColumn('users', 'city') ? 'city' : null,
+            Schema::hasColumn('users', 'state') ? 'state' : null,
+            Schema::hasColumn('users', 'district') ? 'district' : null,
+            Schema::hasColumn('users', 'business_city') ? 'business_city' : null,
+            Schema::hasColumn('users', 'business_state') ? 'business_state' : null,
+        ]));
+
+        DB::table('users')
+            ->select($columns)
+            ->orderBy('id')
+            ->chunk(500, function (Collection $users): void {
+                foreach ($users as $user) {
+                    $location = null;
+
+                    if (! empty($user->city_id)) {
+                        $location = $this->locationFromCityId((string) $user->city_id);
+                    }
+
+                    if (! $location) {
+                        $location = $this->locationFromCityName(
+                            $this->firstFilled($user->city ?? null, $user->business_city ?? null),
+                            $this->firstFilled($user->state ?? null, $user->business_state ?? null),
+                        );
+                    }
+
+                    if (! $location) {
+                        $location = $this->locationFromDistrictAndState(
+                            $user->district ?? null,
+                            $this->firstFilled($user->state ?? null, $user->business_state ?? null),
+                        );
+                    }
+
+                    $this->upsertLocation($location);
+                }
+            });
+    }
+
+    private function syncFromCirclesTable(): void
+    {
+        if (! Schema::hasTable('circles')) {
+            return;
+        }
+
+        $columns = array_values(array_filter([
+            'id',
+            Schema::hasColumn('circles', 'city_id') ? 'city_id' : null,
+            Schema::hasColumn('circles', 'city') ? 'city' : null,
+            Schema::hasColumn('circles', 'state') ? 'state' : null,
+            Schema::hasColumn('circles', 'district') ? 'district' : null,
+        ]));
+
+        DB::table('circles')
+            ->select($columns)
+            ->orderBy('id')
+            ->chunk(500, function (Collection $circles): void {
+                foreach ($circles as $circle) {
+                    $location = null;
+
+                    if (! empty($circle->city_id)) {
+                        $location = $this->locationFromCityId((string) $circle->city_id);
+                    }
+
+                    if (! $location) {
+                        $location = $this->locationFromCityName($circle->city ?? null, $circle->state ?? null);
+                    }
+
+                    if (! $location) {
+                        $location = $this->locationFromDistrictAndState($circle->district ?? null, $circle->state ?? null);
+                    }
+
+                    $this->upsertLocation($location);
+                }
+            });
+    }
+
     private function locationFromCityId(string $cityId): ?array
     {
         if (! Schema::hasTable('cities')) {
             return null;
         }
 
-        $city = DB::table('cities')->where('id', $cityId)->first(['name', 'state', 'district']);
+        $columns = ['name', 'state'];
+        if (Schema::hasColumn('cities', 'district')) {
+            $columns[] = 'district';
+        }
+
+        $city = DB::table('cities')->where('id', $cityId)->first($columns);
 
         if (! $city) {
             return null;
         }
 
-        $state = $this->normalizeDistrictName($city->state ?? null);
+        $state = $this->normalizeStateName($city->state ?? null);
         $district = $this->normalizeDistrictName($city->district ?? null) ?: $this->normalizeDistrictName($city->name ?? null);
 
         return ($state && $district) ? compact('state', 'district') : null;
@@ -186,7 +307,7 @@ class DistrictSyncService
     private function locationFromCityName(?string $cityName, ?string $stateName): ?array
     {
         $cityName = $this->normalizeDistrictName($cityName);
-        $stateName = $this->normalizeDistrictName($stateName);
+        $stateName = $this->normalizeStateName($stateName);
 
         if (! $cityName) {
             return null;
@@ -200,9 +321,14 @@ class DistrictSyncService
                 $query->orderByRaw("CASE WHEN LOWER(NULLIF(TRIM(state), '')) = ? THEN 0 ELSE 1 END", [Str::lower($stateName)]);
             }
 
-            $city = $query->first(['name', 'state', 'district']);
+            $columns = ['name', 'state'];
+            if (Schema::hasColumn('cities', 'district')) {
+                $columns[] = 'district';
+            }
+
+            $city = $query->first($columns);
             if ($city) {
-                $state = $this->normalizeDistrictName($city->state ?? null) ?: $stateName;
+                $state = $this->normalizeStateName($city->state ?? null) ?: $stateName;
                 $district = $this->normalizeDistrictName($city->district ?? null) ?: $this->normalizeDistrictName($city->name ?? null);
 
                 return ($state && $district) ? compact('state', 'district') : null;
@@ -210,6 +336,105 @@ class DistrictSyncService
         }
 
         return ($stateName && $cityName) ? ['state' => $stateName, 'district' => $cityName] : null;
+    }
+
+    private function locationFromDistrictAndState(?string $districtName, ?string $stateName): ?array
+    {
+        $state = $this->normalizeStateName($stateName);
+        $district = $this->normalizeDistrictName($districtName);
+
+        return ($state && $district) ? compact('state', 'district') : null;
+    }
+
+    private function resolveOrCreateStateId(string $stateName): ?string
+    {
+        $existing = DB::table('states')->get(['id', 'name'])->first(
+            fn (object $state): bool => $this->stateKey($state->name ?? null) === $this->stateKey($stateName)
+        );
+
+        $now = now();
+
+        if ($existing) {
+            DB::table('states')
+                ->where('id', $existing->id)
+                ->update(array_filter([
+                    'name' => $stateName,
+                    'status' => Schema::hasColumn('states', 'status') ? 'active' : null,
+                    'updated_at' => $now,
+                ], fn ($value) => $value !== null));
+
+            return (string) $existing->id;
+        }
+
+        $stateId = (string) Str::uuid();
+        DB::table('states')->insert([
+            'id' => $stateId,
+            'name' => $stateName,
+            'status' => 'active',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        return $stateId;
+    }
+
+    private function findDistrictByNormalizedName(string $stateId, string $districtName): ?object
+    {
+        return DB::table('districts')
+            ->where('state_id', $stateId)
+            ->get(['id', 'name'])
+            ->first(fn (object $district): bool => $this->districtKey($district->name ?? null) === $this->districtKey($districtName));
+    }
+
+    private function upsertLocation(?array $location): void
+    {
+        if (! $location) {
+            return;
+        }
+
+        $this->upsertDistrict($location['state'] ?? null, $location['district'] ?? null);
+    }
+
+    private function normalizeLocationName(?string $value, bool $isDistrict): ?string
+    {
+        $value = preg_replace('/\s+/u', ' ', trim((string) $value));
+        $value = trim($value, '"');
+
+        if ($value === '') {
+            return null;
+        }
+
+        if ($isDistrict && str_contains($value, ',')) {
+            $value = trim(Str::before($value, ','));
+        }
+
+        if ($isDistrict) {
+            $value = preg_replace('/\s+district$/iu', '', $value) ?: $value;
+        }
+
+        $name = Str::title(Str::lower($value));
+        $key = Str::lower($name);
+
+        if (in_array($key, self::INVALID_EXACT_VALUES, true)) {
+            return null;
+        }
+
+        if (mb_strlen($name) > 150 || str_contains($name, "\n")) {
+            return null;
+        }
+
+        if ($isDistrict && preg_match('/\d|@|https?:\/\/|\b(road|street|tower|floor|hotel|resort|restaurant|building|complex|mall|near|opposite|private|limited|company|office)\b/iu', $name)) {
+            return null;
+        }
+
+        return $name;
+    }
+
+    private function attributeIfColumnExists(Circle $circle, string $column): ?string
+    {
+        return Schema::hasColumn('circles', $column) && is_string($circle->getAttribute($column))
+            ? $circle->getAttribute($column)
+            : null;
     }
 
     private function firstFilled(mixed ...$values): ?string

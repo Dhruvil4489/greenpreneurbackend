@@ -462,6 +462,8 @@ class UsersController extends Controller
         $dedRoleId = Role::query()->where('key', 'ded')->value('id');
         $isDedSelectedForValidation = $dedRoleId && in_array($dedRoleId, (array) $request->input('role_ids', []), true);
         if ($isDedSelectedForValidation) {
+            $this->dedLocationService->syncKnownLocations();
+
             $request->validate([
                 'ded_state_id' => [
                     'required',
@@ -491,11 +493,10 @@ class UsersController extends Controller
                             return;
                         }
 
-                        $exists = DB::table('districts')
-                            ->where('id', $value)
-                            ->where('state_id', $request->input('ded_state_id'))
-                            ->when(Schema::hasColumn('districts', 'status'), fn ($query) => $query->where('status', 'active'))
-                            ->exists();
+                        $exists = $this->dedLocationService->districtBelongsToState(
+                            (string) $value,
+                            (string) $request->input('ded_state_id'),
+                        );
 
                         if (! $exists) {
                             $fail('Please select a valid active district for the selected state.');
@@ -835,8 +836,11 @@ class UsersController extends Controller
 
                     if (Schema::hasTable('admin_ded_districts')) {
                         if ($isDedSelected) {
-                            $stateId = (string) $request->input('ded_state_id');
                             $districtId = (string) $request->input('ded_district_id');
+                            $stateId = $this->dedLocationService->canonicalStateIdForDistrict(
+                                $districtId,
+                                (string) $request->input('ded_state_id'),
+                            );
                             $stateName = $this->dedLocationService->resolveStateName($stateId);
                             $districtName = DB::table('districts')->where('id', $districtId)->value('name');
                             $districtName = $this->dedLocationService->normalizeDistrictName($districtName);

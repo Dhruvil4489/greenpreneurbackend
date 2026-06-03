@@ -10,39 +10,50 @@ use Illuminate\Support\Str;
 
 class DedLocationService
 {
-    private const INVALID_LOCATION_VALUES = [
-        '',
-        '-',
-        '--',
-        'n/a',
-        'na',
-        'none',
-        'null',
-        'no city',
-        'unknown',
-        'not available',
-        'not applicable',
-    ];
+    private bool $locationsSynced = false;
+
+    public function __construct(private readonly DistrictSyncService $districtSyncService)
+    {
+    }
 
     public function getAvailableStates(): Collection
     {
+        $this->syncKnownLocations();
+
         if (! Schema::hasTable('states') || ! Schema::hasColumn('states', 'name')) {
             return collect();
         }
 
-        return DB::table('states')
+        $unique = collect();
+
+        DB::table('states')
             ->when(Schema::hasColumn('states', 'status'), fn (Builder $query) => $query->where('status', 'active'))
             ->orderBy('name')
             ->get(['id', 'name'])
-            ->map(fn (object $state): object => (object) [
-                'id' => (string) $state->id,
-                'name' => $this->displayName($state->name),
-            ])
+            ->each(function (object $state) use ($unique): void {
+                $name = $this->districtSyncService->normalizeStateName($state->name ?? null);
+                $key = $this->districtSyncService->stateKey($name);
+
+                if (! $name || $key === '' || $unique->has($key)) {
+                    return;
+                }
+
+                $unique->put($key, (object) [
+                    'id' => (string) $state->id,
+                    'name' => $name,
+                ]);
+            });
+
+        return $unique
+            ->values()
+            ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
             ->values();
     }
 
     public function getAvailableDistrictsByState(?string $stateId): Collection
     {
+        $this->syncKnownLocations();
+
         if (! Schema::hasTable('districts') || ! Schema::hasColumn('districts', 'name')) {
             return collect();
         }
@@ -51,26 +62,43 @@ class DedLocationService
             ->when(Schema::hasColumn('districts', 'status'), fn (Builder $builder) => $builder->where('districts.status', 'active'));
 
         if ($stateId && Schema::hasColumn('districts', 'state_id')) {
-            $query->where('districts.state_id', $stateId);
+            $stateIds = $this->equivalentStateIds($stateId);
+            $query->whereIn('districts.state_id', $stateIds !== [] ? $stateIds : [$stateId]);
         }
 
-        return $query
-            ->orderBy('districts.name')
-            ->get(['districts.id', 'districts.name'])
-            ->map(fn (object $district): object => (object) [
-                'id' => (string) $district->id,
-                'name' => $this->displayName($district->name),
-                'district_name' => $this->displayName($district->name),
-                'district_id' => (string) $district->id,
-            ])
-            ->values();
+        return $this->districtSyncService->uniqueDistrictRows(
+            $query->orderBy('districts.name')->get(['districts.id', 'districts.name'])
+        );
+    }
+
+
+    public function districtBelongsToState(string $districtId, string $stateId): bool
+    {
+        if (! Schema::hasTable('districts') || ! Schema::hasColumn('districts', 'state_id')) {
+            return false;
+        }
+
+        $stateIds = $this->equivalentStateIds($stateId);
+
+        return DB::table('districts')
+            ->where('id', $districtId)
+            ->whereIn('state_id', $stateIds !== [] ? $stateIds : [$stateId])
+            ->when(Schema::hasColumn('districts', 'status'), fn (Builder $query) => $query->where('status', 'active'))
+            ->exists();
+    }
+
+    public function canonicalStateIdForDistrict(string $districtId, ?string $fallbackStateId = null): ?string
+    {
+        if (! Schema::hasTable('districts') || ! Schema::hasColumn('districts', 'state_id')) {
+            return $fallbackStateId;
+        }
+
+        return DB::table('districts')->where('id', $districtId)->value('state_id') ?: $fallbackStateId;
     }
 
     public function normalizeDistrictName(?string $value): ?string
     {
-        $name = $this->displayName($value);
-
-        return $this->isUsableLocationName($name) ? $name : null;
+        return $this->districtSyncService->normalizeDistrictName($value);
     }
 
     public function getAssignedDedDistrict(string $adminUserId): ?object
@@ -113,8 +141,8 @@ class DedLocationService
 
         $districtName = $this->normalizeDistrictName($assignment->districts_table_name ?? null)
             ?: $this->normalizeDistrictName($assignment->district_name ?? null);
-        $stateName = $this->normalizeDistrictName($assignment->states_table_name ?? null)
-            ?: $this->normalizeDistrictName($assignment->state_name ?? null);
+        $stateName = $this->districtSyncService->normalizeStateName($assignment->states_table_name ?? null)
+            ?: $this->districtSyncService->normalizeStateName($assignment->state_name ?? null);
 
         return (object) [
             'state_id' => $assignment->state_id ?? null,
@@ -171,13 +199,37 @@ class DedLocationService
         return $state ? $this->displayName($state) : null;
     }
 
-    private function isUsableLocationName(?string $value): bool
+    public function syncKnownLocations(): void
     {
-        if ($value === null) {
-            return false;
+        if ($this->locationsSynced) {
+            return;
         }
 
-        return ! in_array($this->normalizedKey($value), self::INVALID_LOCATION_VALUES, true);
+        $this->districtSyncService->syncKnownLocations();
+        $this->locationsSynced = true;
+    }
+
+
+    private function equivalentStateIds(string $stateId): array
+    {
+        if (! Schema::hasTable('states') || ! Schema::hasColumn('states', 'name')) {
+            return [$stateId];
+        }
+
+        $stateName = DB::table('states')->where('id', $stateId)->value('name');
+        $stateKey = $this->districtSyncService->stateKey($stateName);
+
+        if ($stateKey === '') {
+            return [$stateId];
+        }
+
+        return DB::table('states')
+            ->get(['id', 'name'])
+            ->filter(fn (object $state): bool => $this->districtSyncService->stateKey($state->name ?? null) === $stateKey)
+            ->pluck('id')
+            ->map(fn ($id): string => (string) $id)
+            ->values()
+            ->all();
     }
 
     private function displayName(?string $value): string
@@ -190,10 +242,5 @@ class DedLocationService
         }
 
         return Str::title(Str::lower($value));
-    }
-
-    private function normalizedKey(?string $value): string
-    {
-        return Str::lower(preg_replace('/\s+/u', ' ', trim((string) $value)));
     }
 }

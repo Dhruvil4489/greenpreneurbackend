@@ -42,9 +42,18 @@
             <p>Circle: {{ $record->circle?->name }}</p>
             <p>Reason: {{ $record->reason_for_joining }}</p>
             <p>Status: <span class="badge text-bg-secondary">{{ $statusLabels[$record->status] ?? $record->status }}</span></p>
-            @if(($record->ded_approval_status ?? 'pending') === 'approved')
-                <p><span class="badge text-bg-success">DED Approved</span></p>
-            @endif
+            <p>
+                <strong>DED Approval:</strong>
+                @php($dedApprovalStatus = (string) ($record->ded_approval_status ?? 'pending'))
+                @if($dedApprovalStatus === 'approved')
+                    <span class="badge text-bg-success">Approved</span>
+                    <span class="text-success small">Approved{{ $record->dedApprovedBy ? ' by ' . $record->dedApprovedBy->adminDisplayName() : ' by DED' }}</span>
+                @elseif($dedApprovalStatus === 'rejected')
+                    <span class="badge text-bg-danger">Rejected</span>
+                @else
+                    <span class="badge text-bg-warning">Pending</span>
+                @endif
+            </p>
 
             @if(($categoryPath['level1'] ?? null) || ($categoryPath['level2'] ?? null) || ($categoryPath['level3'] ?? null) || ($categoryPath['level4'] ?? null))
                 <hr>

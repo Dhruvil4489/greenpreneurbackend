@@ -18,15 +18,15 @@
 @else
     @php
         $cards = [
-            ['label' => 'Total District Peers', 'value' => $stats['total_users'] ?? 0],
-            ['label' => 'Total District Circles', 'value' => $stats['active_circles'] ?? 0],
-            ['label' => 'Total Referrals', 'value' => $stats['referrals'] ?? 0],
-            ['label' => 'Total Requirements', 'value' => $stats['requirements'] ?? 0],
-            ['label' => 'Total Testimonials', 'value' => $stats['testimonials'] ?? 0],
-            ['label' => 'Total Business Deals', 'value' => $stats['business_deals'] ?? 0],
-            ['label' => 'Total P2P Meetings', 'value' => $stats['p2p_meetings'] ?? 0],
-            ['label' => 'Total Coins Earned', 'value' => $stats['coins_earned'] ?? 0],
-            ['label' => 'Pending Requests', 'value' => $stats['pending_requests'] ?? 0],
+            ['label' => 'Total District Peers', 'value' => $stats['total_users'] ?? 0, 'route' => 'admin.users.index'],
+            ['label' => 'Total District Circles', 'value' => $stats['active_circles'] ?? 0, 'route' => 'admin.circles.index'],
+            ['label' => 'Total Referrals', 'value' => $stats['referrals'] ?? 0, 'route' => 'admin.activities.referrals.index'],
+            ['label' => 'Total Requirements', 'value' => $stats['requirements'] ?? 0, 'route' => 'admin.activities.requirements.index'],
+            ['label' => 'Total Testimonials', 'value' => $stats['testimonials'] ?? 0, 'route' => 'admin.activities.testimonials.index'],
+            ['label' => 'Total Business Deals', 'value' => $stats['business_deals'] ?? 0, 'route' => 'admin.activities.business-deals.index'],
+            ['label' => 'Total P2P Meetings', 'value' => $stats['p2p_meetings'] ?? 0, 'route' => 'admin.activities.p2p-meetings.index'],
+            ['label' => 'Total Coins Earned', 'value' => $stats['coins_earned'] ?? 0, 'route' => 'admin.coins.index'],
+            ['label' => 'Pending Requests', 'value' => $stats['pending_requests'] ?? 0, 'route' => 'admin.circle-joining-requests.index'],
         ];
     @endphp
 
@@ -60,10 +60,10 @@
     <div class="row g-3 mb-4">
         @foreach ($cards as $card)
             <div class="col-sm-6 col-xl-4">
-                <div class="p-3 rounded border bg-white h-100">
+                <a href="{{ route($card['route']) }}" class="d-block p-3 rounded border bg-white h-100 text-decoration-none text-reset shadow-sm">
                     <p class="text-muted mb-1">{{ $card['label'] }}</p>
                     <h4 class="mb-0">{{ number_format($card['value']) }}</h4>
-                </div>
+                </a>
             </div>
         @endforeach
     </div>

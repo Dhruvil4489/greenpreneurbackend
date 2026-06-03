@@ -222,7 +222,8 @@ class AdminCircleScope
         }
     }
 
-    public static function applyToEventsQuery($query, ?AdminUser $admin, string $eventTable = 'events'): void
+
+    public static function applyToCirclesQuery($query, ?AdminUser $admin, string $circleAlias = 'circles'): void
     {
         if (! AdminAccess::isDed($admin)) {
             return;
@@ -237,32 +238,72 @@ class AdminCircleScope
             return;
         }
 
+        $query->where(function ($scopeQuery) use ($circleAlias, $districtName, $stateName): void {
+            self::applyCircleLocationPredicate($scopeQuery, $circleAlias, $districtName, $stateName);
+
+            if (Schema::hasTable('circle_members') && Schema::hasTable('users')) {
+                $scopeQuery->orWhereExists(function ($memberSubQuery) use ($circleAlias, $districtName, $stateName): void {
+                    $memberSubQuery->selectRaw(1)
+                        ->from('circle_members as ded_scope_circle_members')
+                        ->join('users as ded_scope_member_users', 'ded_scope_member_users.id', '=', 'ded_scope_circle_members.user_id')
+                        ->whereColumn('ded_scope_circle_members.circle_id', "{$circleAlias}.id");
+
+                    if (Schema::hasTable('cities') && Schema::hasColumn('users', 'city_id')) {
+                        $memberSubQuery->leftJoin('cities as ded_scope_member_cities', 'ded_scope_member_cities.id', '=', 'ded_scope_member_users.city_id');
+                    }
+
+                    if (Schema::hasColumn('circle_members', 'status')) {
+                        $memberSubQuery->where('ded_scope_circle_members.status', 'approved');
+                    }
+
+                    if (Schema::hasColumn('circle_members', 'deleted_at')) {
+                        $memberSubQuery->whereNull('ded_scope_circle_members.deleted_at');
+                    }
+
+                    self::applyUserLocationPredicate($memberSubQuery, 'ded_scope_member_users', 'ded_scope_member_cities', $districtName, $stateName);
+                });
+            }
+        });
+    }
+
+    private static function applyCircleLocationPredicate($query, string $circleAlias, string $districtName, ?string $stateName): void
+    {
+        $query->where(function ($circleLocationQuery) use ($circleAlias, $districtName, $stateName): void {
+            if (Schema::hasColumn('circles', 'city')) {
+                $circleLocationQuery->whereRaw("LOWER(NULLIF(TRIM({$circleAlias}.city), '')) = ?", [mb_strtolower($districtName)]);
+            } else {
+                $circleLocationQuery->whereRaw('1=0');
+            }
+
+            if (Schema::hasColumn('circles', 'city_id') && Schema::hasTable('cities')) {
+                $circleLocationQuery->orWhereExists(function ($citySubQuery) use ($circleAlias, $districtName, $stateName): void {
+                    $citySubQuery->selectRaw(1)
+                        ->from('cities as ded_scope_circle_cities')
+                        ->whereColumn('ded_scope_circle_cities.id', "{$circleAlias}.city_id");
+
+                    self::applyCityDistrictPredicate($citySubQuery, 'ded_scope_circle_cities', $districtName, $stateName);
+                });
+            }
+        });
+    }
+
+    public static function applyToEventsQuery($query, ?AdminUser $admin, string $eventTable = 'events'): void
+    {
+        if (! AdminAccess::isDed($admin)) {
+            return;
+        }
+
         if (! Schema::hasColumn($eventTable, 'circle_id') || ! Schema::hasTable('circles')) {
             $query->whereRaw('1=0');
             return;
         }
 
-        $query->whereExists(function ($subQuery) use ($eventTable, $districtName, $stateName) {
+        $query->whereExists(function ($subQuery) use ($eventTable, $admin) {
             $subQuery->selectRaw(1)
                 ->from('circles as ded_scope_circles')
-                ->whereColumn('ded_scope_circles.id', "{$eventTable}.circle_id")
-                ->where(function ($circleLocationQuery) use ($districtName, $stateName) {
-                    if (Schema::hasColumn('circles', 'city')) {
-                        $circleLocationQuery->whereRaw("LOWER(NULLIF(TRIM(ded_scope_circles.city), '')) = ?", [mb_strtolower($districtName)]);
-                    } else {
-                        $circleLocationQuery->whereRaw('1=0');
-                    }
+                ->whereColumn('ded_scope_circles.id', "{$eventTable}.circle_id");
 
-                    if (Schema::hasColumn('circles', 'city_id') && Schema::hasTable('cities')) {
-                        $circleLocationQuery->orWhereExists(function ($citySubQuery) use ($districtName, $stateName) {
-                            $citySubQuery->selectRaw(1)
-                                ->from('cities as ded_scope_cities')
-                                ->whereColumn('ded_scope_cities.id', 'ded_scope_circles.city_id');
-
-                            self::applyCityDistrictPredicate($citySubQuery, 'ded_scope_cities', $districtName, $stateName);
-                        });
-                    }
-                });
+            self::applyToCirclesQuery($subQuery, $admin, 'ded_scope_circles');
         });
     }
 

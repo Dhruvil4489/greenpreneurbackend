@@ -32,7 +32,7 @@
 
     <div class="card"><div class="card-body table-responsive">
         <table class="table table-sm align-middle">
-            <thead><tr><th>Submitted At</th><th>Peer</th><th>Company</th><th>City</th><th>Circle</th><th>Reason for Joining</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Submitted At</th><th>Peer</th><th>Company</th><th>City</th><th>Circle</th><th>Reason for Joining</th><th>Status</th><th>DED Approval</th><th>Actions</th></tr></thead>
             <tbody>
             @forelse($requests as $row)
                 <tr>
@@ -51,8 +51,16 @@
                         @elseif($row->status === 'circle_member')
                             <div class="small text-success mt-1">Payment completed</div>
                         @endif
-                        @if(($row->ded_approval_status ?? 'pending') === 'approved')
-                            <div class="small text-success mt-1">DED Approved{{ $row->dedApprovedBy ? ' by ' . $row->dedApprovedBy->adminDisplayName() : '' }}</div>
+                    </td>
+                    <td>
+                        @php($dedApprovalStatus = (string) ($row->ded_approval_status ?? 'pending'))
+                        @if($dedApprovalStatus === 'approved')
+                            <span class="badge text-bg-success">Approved</span>
+                            <div class="small text-success mt-1">Approved{{ $row->dedApprovedBy ? ' by ' . $row->dedApprovedBy->adminDisplayName() : ' by DED' }}</div>
+                        @elseif($dedApprovalStatus === 'rejected')
+                            <span class="badge text-bg-danger">Rejected</span>
+                        @else
+                            <span class="badge text-bg-warning">Pending</span>
                         @endif
                     </td>
                     <td>
@@ -74,7 +82,7 @@
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="8" class="text-center text-muted">No requests found.</td></tr>
+                <tr><td colspan="9" class="text-center text-muted">No requests found.</td></tr>
             @endforelse
             </tbody>
         </table>

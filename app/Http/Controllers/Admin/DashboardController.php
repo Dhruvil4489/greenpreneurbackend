@@ -273,45 +273,7 @@ class DashboardController extends Controller
 
     private function applyDedCircleScope($query, $admin): void
     {
-        $location = AdminAccess::assignedDedLocation($admin);
-        $districtName = $location['district_name'] ?? null;
-        $stateName = $location['state_name'] ?? null;
-
-        if (! $districtName) {
-            $query->whereRaw('1=0');
-            return;
-        }
-
-        $query->where(function ($scopeQuery) use ($districtName, $stateName) {
-            if (Schema::hasColumn('circles', 'city')) {
-                $scopeQuery->whereRaw('LOWER(NULLIF(TRIM(circles.city), \'\')) = ?', [mb_strtolower($districtName)]);
-            } else {
-                $scopeQuery->whereRaw('1=0');
-            }
-
-            if (Schema::hasTable('cities') && Schema::hasColumn('circles', 'city_id')) {
-                $scopeQuery->orWhereExists(function ($subQuery) use ($districtName, $stateName) {
-                    $subQuery->selectRaw(1)
-                        ->from('cities as ded_scope_cities')
-                        ->whereColumn('ded_scope_cities.id', 'circles.city_id')
-                        ->where(function ($cityQuery) use ($districtName) {
-                            $cityQuery->whereRaw('LOWER(NULLIF(TRIM(ded_scope_cities.name), \'\')) = ?', [mb_strtolower($districtName)]);
-
-                            if (Schema::hasColumn('cities', 'district')) {
-                                $cityQuery->orWhereRaw('LOWER(NULLIF(TRIM(ded_scope_cities.district), \'\')) = ?', [mb_strtolower($districtName)]);
-                            }
-                        });
-
-                    if ($stateName && Schema::hasColumn('cities', 'state')) {
-                        $subQuery->where(function ($stateQuery) use ($stateName) {
-                            $stateQuery->whereNull('ded_scope_cities.state')
-                                ->orWhereRaw("NULLIF(TRIM(ded_scope_cities.state), '') IS NULL")
-                                ->orWhereRaw("LOWER(NULLIF(TRIM(ded_scope_cities.state), '')) = ?", [mb_strtolower($stateName)]);
-                        });
-                    }
-                });
-            }
-        });
+        AdminCircleScope::applyToCirclesQuery($query, $admin);
     }
 
     private function safeCountTable(string $table): int

@@ -10,6 +10,8 @@ use App\Models\CircleMember;
 use App\Models\CircleCategory;
 use App\Models\City;
 use App\Models\User;
+use App\Support\AdminAccess;
+use App\Support\AdminCircleScope;
 use App\Support\Zoho\ZohoBillingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -74,6 +76,11 @@ class CircleController extends Controller
             } else {
                 $query->whereIn('circles.id', $allowedCircleIds);
             }
+        }
+
+        $admin = Auth::guard('admin')->user();
+        if (AdminAccess::isDed($admin)) {
+            AdminCircleScope::applyToCirclesQuery($query, $admin);
         }
 
         if ($search !== '') {

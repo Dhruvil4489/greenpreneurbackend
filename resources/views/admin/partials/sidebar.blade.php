@@ -62,11 +62,7 @@
             ['icon' => 'bi-gear', 'label' => 'System Settings', 'route' => '#'],
         ]);
 
-    $activityMenu = $isIndustryDirector
-        ? [
-            ['label' => 'Summary', 'route' => 'admin.activities.index'],
-        ]
-        : (($isSuper || $isCircleScoped) ? [
+    $fullActivityMenu = [
         ['label' => 'Summary', 'route' => 'admin.activities.index'],
         ['label' => 'Testimonials', 'route' => 'admin.activities.testimonials.index'],
         ['label' => 'Requirements', 'route' => 'admin.activities.requirements.index'],
@@ -77,13 +73,15 @@
         ['label' => 'Recommend A Peer', 'route' => 'admin.activities.recommend-peer.index'],
         ['label' => 'Find & Build Collaborations', 'route' => 'admin.collaborations.index'],
         ['label' => 'Register A Visitor', 'route' => 'admin.activities.register-visitor.index'],
-    ] : []);
+    ];
+
+    $activityMenu = ($isIndustryDirector || $isSuper || $isCircleScoped) ? $fullActivityMenu : [];
 
     $activityActive = request()->routeIs('admin.activities.*') || request()->routeIs('admin.collaborations.*');
     $referralReportItem = (! $isIndustryDirector && ($isSuper || $isCircleScoped))
         ? ['icon' => 'bi-person-lines-fill', 'label' => 'Referral Report', 'route' => 'admin.referral-report.index', 'active_routes' => ['admin.referral-report.*']]
         : null;
-    $activityExpanded = $activityActive || ! $isGlobalAdmin;
+    $activityExpanded = $isIndustryDirector || $activityActive || ! $isGlobalAdmin;
 
     $postsMenu = ($isGlobalAdmin || $isIndustryDirector) ? [
         ['label' => 'All Posts', 'route' => 'admin.posts.index'],

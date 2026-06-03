@@ -6,10 +6,12 @@ use Carbon\Carbon;
 use App\Http\Controllers\Controller;
 use App\Models\PeerRecommendation;
 use App\Models\User;
+use App\Services\Admin\IndustryScopeService;
 use App\Support\AdminCircleScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
 class ActivitiesPeerRecommendationController extends Controller
@@ -109,6 +111,11 @@ class ActivitiesPeerRecommendationController extends Controller
         }
 
         AdminCircleScope::applyToActivityQuery($query, Auth::guard('admin')->user(), 'peer_recommendations.user_id', null);
+        app(IndustryScopeService::class)->applyToActivityQuery($query, Auth::guard('admin')->user(), array_filter([
+            'peer_recommendations.user_id',
+            Schema::hasColumn('peer_recommendations', 'recommender_id') ? 'peer_recommendations.recommender_id' : null,
+            Schema::hasColumn('peer_recommendations', 'recommended_user_id') ? 'peer_recommendations.recommended_user_id' : null,
+        ]));
 
         $items = $query
             ->orderByDesc('created_at')
@@ -158,7 +165,7 @@ class ActivitiesPeerRecommendationController extends Controller
     {
         $admin = Auth::guard('admin')->user();
 
-        if (! AdminCircleScope::userInScope($admin, $peer->id)) {
+        if (! AdminCircleScope::userInScope($admin, $peer->id) || ! app(IndustryScopeService::class)->userInScope($admin, (string) $peer->id)) {
             abort(403);
         }
 

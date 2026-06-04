@@ -46,10 +46,13 @@ class DedApiService
 
     public function actor(Request $request): User
     {
-        /** @var User $actor */
         $actor = $request->attributes->get('ded_actor') ?: $request->user();
 
-        return $actor;
+        if ($actor instanceof User) {
+            return $actor;
+        }
+
+        abort(403, 'DED API token is not linked to an app user for this action.');
     }
 
     public function success($data = [], string $message = 'OK', array $meta = [], int $status = 200)

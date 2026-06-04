@@ -14,7 +14,7 @@ class DedContextController extends Controller
     public function me(Request $request)
     {
         $admin = $this->ded->admin($request);
-        $actor = $this->ded->actor($request);
+        $actor = $request->attributes->get('ded_actor');
         $location = $this->ded->location($request);
 
         return $this->ded->success([
@@ -23,7 +23,7 @@ class DedContextController extends Controller
                 'name' => $admin->name,
                 'email' => $admin->email,
             ],
-            'user' => $this->ded->userSummary($actor),
+            'user' => $actor ? $this->ded->userSummary($actor) : null,
             'role' => 'ded',
             'roles' => AdminAccess::adminRoleKeys($admin),
             'assigned_state' => [

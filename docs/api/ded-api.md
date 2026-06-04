@@ -2,7 +2,54 @@
 
 Base URL: `{{base_url}}/api/v1/ded`
 
-Authentication headers for every endpoint:
+## OTP authentication
+
+DED admins use the admin OTP login flow for APIs, not the normal `/api/v1/auth/login` password endpoint. These endpoints reuse the existing `admin_users` and `admin_login_otps` storage used by the web admin OTP login, then issue a Sanctum bearer token for the DED admin context.
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| POST | `/auth/request-otp` | Sends a 4-digit OTP to an existing DED admin email from `admin_users`. |
+| POST | `/auth/verify-otp` | Verifies the OTP, confirms the admin has the `ded` role and an assigned district, and returns a Sanctum bearer token. |
+
+Request OTP body:
+
+```json
+{
+  "email": "dhruv99h@gmail.com"
+}
+```
+
+Verify OTP body:
+
+```json
+{
+  "email": "dhruv99h@gmail.com",
+  "otp": "1234"
+}
+```
+
+Verify success response:
+
+```json
+{
+  "success": true,
+  "message": "DED login successful.",
+  "data": {
+    "token": "SANCTUM_TOKEN",
+    "token_type": "Bearer",
+    "admin": {
+      "id": "uuid",
+      "email": "dhruv99h@gmail.com",
+      "role": "ded",
+      "district": "Ahmedabad",
+      "state": "Gujarat"
+    }
+  },
+  "meta": {}
+}
+```
+
+Authentication headers for every protected endpoint:
 
 ```http
 Authorization: Bearer {{token}}
@@ -10,7 +57,7 @@ Accept: application/json
 Content-Type: application/json
 ```
 
-All endpoints require Sanctum authentication and the authenticated app user must map by email to an admin user with the `ded` role and an assigned DED district. Every list, detail, report, and action endpoint applies the same assigned-district scope used by the DED web module.
+Protected endpoints require Sanctum authentication and the token must belong to a DED admin user, or to an app user whose email maps to a DED admin user, with an assigned DED district. Every list, detail, report, and action endpoint applies the same assigned-district scope used by the DED web module.
 
 ## Response format
 

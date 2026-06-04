@@ -51,6 +51,7 @@ use App\Http\Controllers\Api\V1\CoinsController;
 use App\Http\Controllers\Api\V1\CollaborationPostController;
 use App\Http\Controllers\Api\V1\ContactPostController;
 use App\Http\Controllers\Api\V1\Ded\DedActivitiesController;
+use App\Http\Controllers\Api\V1\Ded\DedAuthController;
 use App\Http\Controllers\Api\V1\Ded\DedCoinsController;
 use App\Http\Controllers\Api\V1\Ded\DedContextController;
 use App\Http\Controllers\Api\V1\Ded\DedDashboardController;
@@ -125,6 +126,11 @@ Route::prefix('v1')->group(function () {
             Route::post('logout', [AuthController::class, 'logout']);
             Route::get('me', [AuthController::class, 'me']);
         });
+    });
+
+    Route::prefix('ded/auth')->group(function () {
+        Route::post('/request-otp', [DedAuthController::class, 'requestOtp']);
+        Route::post('/verify-otp', [DedAuthController::class, 'verifyOtp']);
     });
 
     Route::middleware('auth:sanctum')->group(function () {

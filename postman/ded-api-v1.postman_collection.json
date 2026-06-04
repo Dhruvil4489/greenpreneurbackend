@@ -59,9 +59,93 @@
     {
       "key": "pending_impact_id",
       "value": ""
+    },
+    {
+      "key": "ded_email",
+      "value": "dhruv99h@gmail.com"
+    },
+    {
+      "key": "ded_otp",
+      "value": "1234"
     }
   ],
   "item": [
+    {
+      "name": "DED Auth - Request OTP",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{ded_email}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/auth/request-otp",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "auth",
+            "request-otp"
+          ]
+        }
+      }
+    },
+    {
+      "name": "DED Auth - Verify OTP",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{ded_email}}\",\n  \"otp\": \"{{ded_otp}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/auth/verify-otp",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "auth",
+            "verify-otp"
+          ]
+        }
+      }
+    },
     {
       "name": "DED Me",
       "request": {

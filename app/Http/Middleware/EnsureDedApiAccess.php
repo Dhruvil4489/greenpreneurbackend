@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\AdminUser;
+use App\Models\User;
 use App\Support\AdminAccess;
 use Closure;
 use Illuminate\Http\Request;
@@ -12,15 +13,19 @@ class EnsureDedApiAccess
 {
     public function handle(Request $request, Closure $next): Response
     {
-        $user = $request->user();
+        $principal = $request->user();
 
-        if (! $user) {
+        if (! $principal) {
             return $this->error('Unauthenticated.', 401);
         }
 
-        $admin = AdminUser::query()
-            ->whereRaw('LOWER(email) = ?', [mb_strtolower(trim((string) $user->email))])
-            ->first();
+        if ($principal instanceof AdminUser) {
+            $admin = $principal;
+        } else {
+            $admin = AdminUser::query()
+                ->whereRaw('LOWER(email) = ?', [mb_strtolower(trim((string) $principal->email))])
+                ->first();
+        }
 
         if (! $admin || ! AdminAccess::isDed($admin)) {
             return $this->error('Only DED users can access this API.', 403);
@@ -31,8 +36,10 @@ class EnsureDedApiAccess
             return $this->error('DED district assignment is missing.', 403);
         }
 
+        $actor = $principal instanceof User ? $principal : AdminAccess::resolveAppUser($admin);
+
         $request->attributes->set('ded_admin', $admin);
-        $request->attributes->set('ded_actor', $user);
+        $request->attributes->set('ded_actor', $actor);
         $request->attributes->set('ded_location', $location);
 
         return $next($request);

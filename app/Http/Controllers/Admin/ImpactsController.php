@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\Impacts\ImpactActionService;
 use App\Services\Impacts\ImpactService;
 use App\Support\AdminAccess;
+use App\Support\AdminCircleScope;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -226,14 +227,18 @@ class ImpactsController extends Controller
 
     public function pending(): View
     {
-        $this->ensureGlobalAdmin();
+        $this->ensureCanAccessImpactsModule();
 
-        $impacts = Impact::query()
+        $query = Impact::query()
             ->with([
                 'user:id,display_name,first_name,last_name,email',
                 'impactedPeer:id,display_name,first_name,last_name,email',
             ])
-            ->where('status', 'pending')
+            ->where('status', 'pending');
+
+        $this->applyDedImpactScope($query);
+
+        $impacts = $query
             ->orderByDesc('created_at')
             ->paginate(25);
 
@@ -242,7 +247,7 @@ class ImpactsController extends Controller
 
     public function exportCsv(Request $request): StreamedResponse
     {
-        $this->ensureGlobalAdmin();
+        $this->ensureCanAccessImpactsModule();
 
         $status = (string) $request->query('status', 'all');
         $headerStatus = (string) $request->query('filter_status', '');
@@ -262,12 +267,16 @@ class ImpactsController extends Controller
         $filterApprovedBy = trim((string) $request->query('filter_approved_by', ''));
         $search = trim((string) $request->query('q', ''));
 
-        $impacts = Impact::query()
+        $impactsQuery = Impact::query()
             ->with([
                 'user:id,display_name,first_name,last_name,email',
                 'impactedPeer:id,display_name,first_name,last_name,email',
                 'approvedBy:id,name',
-            ])
+            ]);
+
+        $this->applyDedImpactScope($impactsQuery);
+
+        $impacts = $impactsQuery
             ->when($status !== 'all', fn ($query) => $query->where('status', $status))
             ->when($filterDate !== '', fn ($query) => $query->whereDate('impact_date', $filterDate))
             ->when($filterAction !== '', fn ($query) => $query->where('action', $filterAction))
@@ -355,15 +364,17 @@ class ImpactsController extends Controller
 
     public function show(string $id): View
     {
-        $this->ensureGlobalAdmin();
-
         $impact = Impact::query()
             ->with(['user:id,display_name,first_name,last_name,email,phone', 'impactedPeer:id,display_name,first_name,last_name,email,phone'])
             ->findOrFail($id);
 
-        $totalLifeImpacted = (int) Impact::query()
+        $this->ensureCanAccessImpact($impact);
+
+        $totalLifeImpactedQuery = Impact::query()
             ->where('user_id', (string) $impact->user_id)
-            ->where('status', 'approved')
+            ->where('status', 'approved');
+        $this->applyDedImpactScope($totalLifeImpactedQuery);
+        $totalLifeImpacted = (int) $totalLifeImpactedQuery
             ->sum(\Illuminate\Support\Facades\DB::raw('COALESCE(life_impacted, 1)'));
 
         return view('admin.impacts.show', [
@@ -374,7 +385,7 @@ class ImpactsController extends Controller
 
     public function approve(string $id, ReviewImpactRequest $request): RedirectResponse
     {
-        $this->ensureGlobalAdmin();
+        $this->ensureCanReviewImpact($id);
 
         $this->impactService->approveImpact($id, (string) Auth::guard('admin')->id(), $request->validated('review_remarks'));
 
@@ -383,11 +394,59 @@ class ImpactsController extends Controller
 
     public function reject(string $id, ReviewImpactRequest $request): RedirectResponse
     {
-        $this->ensureGlobalAdmin();
+        $this->ensureCanReviewImpact($id);
 
         $this->impactService->rejectImpact($id, (string) Auth::guard('admin')->id(), $request->validated('review_remarks'));
 
         return redirect()->back()->with('success', 'Impact rejected successfully.');
+    }
+
+
+    private function ensureCanAccessImpactsModule(): void
+    {
+        $admin = Auth::guard('admin')->user();
+
+        if (! AdminAccess::isGlobalAdmin($admin) && ! AdminAccess::isDed($admin)) {
+            abort(403);
+        }
+    }
+
+    private function applyDedImpactScope($query): void
+    {
+        $admin = Auth::guard('admin')->user();
+
+        if (! AdminAccess::isDed($admin)) {
+            return;
+        }
+
+        AdminCircleScope::applyToActivityQuery($query, $admin, 'impacts.user_id', 'impacts.impacted_peer_id');
+    }
+
+    private function ensureCanAccessImpact(Impact $impact): void
+    {
+        $admin = Auth::guard('admin')->user();
+
+        if (AdminAccess::isGlobalAdmin($admin)) {
+            return;
+        }
+
+        if (AdminAccess::isDed($admin)
+            && (AdminCircleScope::userInScope($admin, (string) $impact->user_id)
+                || AdminCircleScope::userInScope($admin, (string) $impact->impacted_peer_id))) {
+            return;
+        }
+
+        abort(403);
+    }
+
+    private function ensureCanReviewImpact(string $id): void
+    {
+        $impact = Impact::query()->findOrFail($id);
+        $this->ensureCanAccessImpact($impact);
+
+        if (AdminAccess::isDed(Auth::guard('admin')->user()) && (string) $impact->status !== 'pending') {
+            abort(403);
+        }
     }
 
     private function ensureGlobalAdmin(): void

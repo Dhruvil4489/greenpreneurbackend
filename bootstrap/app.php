@@ -5,6 +5,8 @@ use App\Http\Middleware\AdminCircleScope;
 use App\Http\Middleware\AdminRoleMiddleware;
 use App\Http\Middleware\AllowFixedMembersToken;
 use App\Http\Middleware\EnsureAdminAuthenticated;
+use App\Http\Middleware\EnsureDedApiAccess;
+use App\Http\Middleware\EnsureIndustryDirector;
 use App\Http\Middleware\EnsureScanAppUser;
 use App\Http\Middleware\EnsureUnityUser;
 use Illuminate\Foundation\Application;
@@ -22,12 +24,17 @@ return Application::configure(basePath: dirname(__DIR__))
         channels: __DIR__.'/../routes/channels.php',
         health: '/up',
     )
+    ->withCommands([
+        __DIR__.'/../app/Console/Commands',
+    ])
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'admin.auth' => EnsureAdminAuthenticated::class,
             'admin.role' => AdminRoleMiddleware::class,
+            'admin.industry-director' => EnsureIndustryDirector::class,
             'admin.circle' => AdminCircleScope::class,
             'fixed.members.token' => AllowFixedMembersToken::class,
+            'ensure.ded.api' => EnsureDedApiAccess::class,
             'scan.app.user' => EnsureScanAppUser::class,
             'unity.user' => EnsureUnityUser::class,
         ]);
@@ -51,6 +58,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
             if ($e instanceof ValidationException) {
                 return response()->json([
+                    'success' => false,
                     'status' => false,
                     'message' => $e->getMessage(),
                     'errors' => $e->errors(),
@@ -64,6 +72,7 @@ return Application::configure(basePath: dirname(__DIR__))
                 : 500;
 
             return response()->json([
+                'success' => false,
                 'status' => false,
                 'message' => $e->getMessage(),
                 'exception' => get_class($e),

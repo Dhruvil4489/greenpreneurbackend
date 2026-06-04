@@ -6,10 +6,12 @@ use Carbon\Carbon;
 use App\Http\Controllers\Controller;
 use App\Models\VisitorRegistration;
 use App\Models\User;
+use App\Services\Admin\IndustryScopeService;
 use App\Support\AdminCircleScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
 class ActivitiesVisitorRegistrationController extends Controller
@@ -130,6 +132,12 @@ class ActivitiesVisitorRegistrationController extends Controller
         }
 
         AdminCircleScope::applyToActivityQuery($query, Auth::guard('admin')->user(), 'visitor_registrations.user_id', null);
+        app(IndustryScopeService::class)->applyToActivityQuery($query, Auth::guard('admin')->user(), array_filter([
+            'visitor_registrations.user_id',
+            Schema::hasColumn('visitor_registrations', 'visitor_id') ? 'visitor_registrations.visitor_id' : null,
+            Schema::hasColumn('visitor_registrations', 'created_by') ? 'visitor_registrations.created_by' : null,
+            Schema::hasColumn('visitor_registrations', 'invited_by_user_id') ? 'visitor_registrations.invited_by_user_id' : null,
+        ]));
 
         $items = $query
             ->orderByDesc('created_at')
@@ -183,7 +191,7 @@ class ActivitiesVisitorRegistrationController extends Controller
     {
         $admin = Auth::guard('admin')->user();
 
-        if (! AdminCircleScope::userInScope($admin, $peer->id)) {
+        if (! AdminCircleScope::userInScope($admin, $peer->id) || ! app(IndustryScopeService::class)->userInScope($admin, (string) $peer->id)) {
             abort(403);
         }
 

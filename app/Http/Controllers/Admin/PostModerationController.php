@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Circle;
 use App\Models\Impact;
 use App\Models\Post;
+use App\Services\Admin\IndustryScopeService;
 use App\Support\AdminAccess;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
@@ -27,9 +28,20 @@ class PostModerationController extends Controller
         }
     }
 
+    private function ensureGlobalAdminOrIndustryDirector(): void
+    {
+        $admin = Auth::guard('admin')->user();
+
+        if (! AdminAccess::isGlobalAdmin($admin) && ! app(IndustryScopeService::class)->isIndustryDirector($admin)) {
+            abort(403);
+        }
+    }
+
     public function index(Request $request): View
     {
-        $this->ensureGlobalAdmin();
+        $this->ensureGlobalAdminOrIndustryDirector();
+        $admin = Auth::guard('admin')->user();
+        $industryScope = app(IndustryScopeService::class);
 
         $circleId = $request->query('circle_id', 'all');
 
@@ -49,6 +61,8 @@ class PostModerationController extends Controller
             ->with(['user', 'circle'])
             ->when($circleId !== 'all' && filled($circleId), fn ($q) => $q->where('circle_id', $circleId));
 
+
+        $industryScope->applyToActivityQuery($query, $admin, ['posts.user_id']);
 
         if (filled($filters['visibility']) && $filters['visibility'] !== 'any') {
             $query->where('posts.visibility', $filters['visibility']);
@@ -132,6 +146,8 @@ class PostModerationController extends Controller
         $impactQuery = Impact::query()
             ->with(['user'])
             ->where('status', 'approved');
+
+        $industryScope->applyToActivityQuery($impactQuery, $admin, ['impacts.user_id']);
 
         if ($circleId !== 'all' && filled($circleId)) {
             $impactQuery->whereRaw('1 = 0');
@@ -244,7 +260,12 @@ class PostModerationController extends Controller
             'rejected' => 'Rejected',
         ];
 
-        $circles = Circle::query()->orderBy('name')->get(['id', 'name']);
+        $circleOptionsQuery = Circle::query()->orderBy('name');
+        if ($industryScope->isIndustryDirector($admin)) {
+            $circleIds = $industryScope->circleIdsForAdmin($admin);
+            $circleOptionsQuery->when($circleIds !== [], fn ($q) => $q->whereIn('id', $circleIds), fn ($q) => $q->whereRaw('1 = 0'));
+        }
+        $circles = $circleOptionsQuery->get(['id', 'name']);
 
         return view('admin.posts.index', [
             'posts' => $posts,
@@ -301,7 +322,8 @@ class PostModerationController extends Controller
 
     public function show(string $postId): View
     {
-        $this->ensureGlobalAdmin();
+        $this->ensureGlobalAdminOrIndustryDirector();
+        $admin = Auth::guard('admin')->user();
 
         $post = Post::withTrashed()
             ->with([
@@ -309,6 +331,10 @@ class PostModerationController extends Controller
                 'circle:id,name',
             ])
             ->findOrFail($postId);
+
+        if (! app(IndustryScopeService::class)->userInScope($admin, (string) $post->user_id)) {
+            abort(403);
+        }
 
         return view('admin.posts.show', [
             'post' => $post,
@@ -365,7 +391,8 @@ class PostModerationController extends Controller
 
     public function restore(string $postId): RedirectResponse
     {
-        $this->ensureGlobalAdmin();
+        $this->ensureGlobalAdminOrIndustryDirector();
+        $admin = Auth::guard('admin')->user();
 
         $post = Post::withTrashed()->findOrFail($postId);
 

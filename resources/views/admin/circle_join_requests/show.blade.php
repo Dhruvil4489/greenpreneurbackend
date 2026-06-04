@@ -31,6 +31,9 @@
                         <form method="POST" action="{{ route('admin.circle-joining-requests.approve-id', $record->id) }}" class="d-inline">@csrf<button class="btn btn-sm btn-success">Approve</button></form>
                         <form method="POST" action="{{ route('admin.circle-joining-requests.reject-id', $record->id) }}" class="d-inline" onsubmit="const r = prompt('Enter rejection reason (required):'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=reason]').value = r.trim(); return true;">@csrf<input type="hidden" name="reason"><button class="btn btn-sm btn-outline-danger">Reject</button></form>
                     @endif
+                    @if($canApproveDed)
+                        <form method="POST" action="{{ route('admin.circle-joining-requests.approve-ded', $record->id) }}" class="d-inline" data-ded-approval-form="true">@csrf<button class="btn btn-sm btn-warning">DED Approval</button></form>
+                    @endif
                 </div>
             </div>
 
@@ -39,6 +42,18 @@
             <p>Circle: {{ $record->circle?->name }}</p>
             <p>Reason: {{ $record->reason_for_joining }}</p>
             <p>Status: <span class="badge text-bg-secondary">{{ $statusLabels[$record->status] ?? $record->status }}</span></p>
+            <p>
+                <strong>DED Approval:</strong>
+                @php($dedApprovalStatus = $record->effectiveDedApprovalStatus())
+                @if($dedApprovalStatus === 'approved')
+                    <span class="badge text-bg-success">Approved</span>
+                    <span class="text-success small">Approved{{ $record->dedApprovedBy ? ' by ' . $record->dedApprovedBy->adminDisplayName() : ' by DED' }}</span>
+                @elseif($dedApprovalStatus === 'rejected')
+                    <span class="badge text-bg-danger">Rejected</span>
+                @else
+                    <span class="badge text-bg-warning">Pending</span>
+                @endif
+            </p>
 
             @if(($categoryPath['level1'] ?? null) || ($categoryPath['level2'] ?? null) || ($categoryPath['level3'] ?? null) || ($categoryPath['level4'] ?? null))
                 <hr>
@@ -59,7 +74,7 @@
                 </ul>
             @endif
 
-            <p>Payment Status: <span class="badge {{ $record->fee_paid_at ? 'text-bg-success' : 'text-bg-warning' }}">{{ $record->fee_paid_at ? 'Paid' : 'Unpaid' }}</span></p>
+            <p>Payment Status: @php($paymentStatus = $record->paymentStatusLabel()) <span class="badge {{ $paymentStatus === 'Paid' ? 'text-bg-success' : ($paymentStatus === 'Unpaid' ? 'text-bg-warning' : 'text-bg-secondary') }}">{{ $paymentStatus }}</span></p>
 
             <hr>
             <h6 class="mt-4">Approval Timeline</h6>
@@ -76,9 +91,14 @@
             <p><strong>Industry Director Rejected At:</strong> {{ optional($record->id_rejected_at)->format('d M Y H:i') ?: '—' }}</p>
             <p><strong>Industry Director Rejection Reason:</strong> <span class="text-danger">{{ $record->id_rejection_reason ?: '—' }}</span></p>
 
+            <p><strong>DED Approval Status:</strong> {{ ucfirst($record->effectiveDedApprovalStatus()) }}</p>
+            <p><strong>DED Approved By:</strong> {{ $record->dedApprovedBy?->adminDisplayName() ?? '—' }}</p>
+            <p><strong>DED Approved At:</strong> {{ optional($record->ded_approved_at)->format('d M Y H:i') ?: '—' }}</p>
+
             <p><strong>Fee Marked At:</strong> {{ optional($record->fee_marked_at)->format('d M Y H:i') ?: '—' }}</p>
             <p><strong>Fee Paid At:</strong> {{ optional($record->fee_paid_at)->format('d M Y H:i') ?: '—' }}</p>
             <p><strong>Membership Activated At:</strong> {{ optional($record->fee_paid_at)->format('d M Y H:i') ?: '—' }}</p>
         </div></div>
     </div>
+    @include('admin.circle_join_requests.partials.ded_approval_modal')
     @endsection

@@ -9,8 +9,38 @@
         </div>
     @endif
 
-
-
+    <div class="card shadow-sm mb-3">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <strong>Top 5 District Peers</strong>
+            <span class="small text-muted">Ranked by combined activity performance</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 80px;">Rank</th>
+                        <th>Peer Name</th>
+                        <th>Company</th>
+                        <th>City</th>
+                        <th class="text-end">Performance Score</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse (($topDistrictPeers ?? collect()) as $rank => $peer)
+                        <tr>
+                            <td>#{{ $rank + 1 }}</td>
+                            <td>{{ $peer->peer_name }}</td>
+                            <td>{{ $peer->company_name ?: '—' }}</td>
+                            <td>{{ $peer->city_name ?: '—' }}</td>
+                            <td class="text-end fw-semibold">{{ number_format((int) ($peer->performance_score ?? 0)) }}</td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="5" class="text-center text-muted">No district peer performance found.</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
 
     <div class="card shadow-sm">
         <form id="activitiesFiltersForm" method="GET" action="{{ route('admin.activities.index') }}">

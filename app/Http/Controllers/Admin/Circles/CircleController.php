@@ -10,6 +10,9 @@ use App\Models\CircleMember;
 use App\Models\CircleCategory;
 use App\Models\City;
 use App\Models\User;
+use App\Support\AdminAccess;
+use App\Support\AdminCircleScope;
+use App\Services\IndustryDirector\IndustryScopeService;
 use App\Support\Zoho\ZohoBillingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -22,8 +25,10 @@ use Throwable;
 
 class CircleController extends Controller
 {
-    public function __construct(private readonly ZohoBillingService $zohoBillingService)
-    {
+    public function __construct(
+        private readonly ZohoBillingService $zohoBillingService,
+        private readonly IndustryScopeService $industryScope,
+    ) {
     }
 
     public function index(Request $request): View
@@ -74,6 +79,15 @@ class CircleController extends Controller
             } else {
                 $query->whereIn('circles.id', $allowedCircleIds);
             }
+        }
+
+        $admin = Auth::guard('admin')->user();
+        if (AdminAccess::isDed($admin)) {
+            AdminCircleScope::applyToCirclesQuery($query, $admin);
+        $industryCircleIds = null;
+        if ($this->industryScope->isIndustryDirector($admin)) {
+            $industryCircleIds = $this->industryScope->circleIdsForAdmin($admin);
+            $query->when($industryCircleIds !== [], fn ($circleQuery) => $circleQuery->whereIn('circles.id', $industryCircleIds), fn ($circleQuery) => $circleQuery->whereRaw('1 = 0'));
         }
 
         if ($search !== '') {
@@ -195,6 +209,7 @@ class CircleController extends Controller
             ->appends($request->query());
 
         $circleNames = Circle::query()
+            ->when(is_array($industryCircleIds), fn ($circleQuery) => $circleQuery->when($industryCircleIds !== [], fn ($inner) => $inner->whereIn('id', $industryCircleIds), fn ($inner) => $inner->whereRaw('1 = 0')))
             ->whereNotNull('name')
             ->select('name')
             ->distinct()
@@ -207,11 +222,11 @@ class CircleController extends Controller
             ->get(['id', 'name']);
 
         $countryOptions = Schema::hasColumn('circles', 'country')
-            ? Circle::query()->whereNotNull('country')->select('country')->distinct()->orderBy('country')->pluck('country')
+            ? Circle::query()->when(is_array($industryCircleIds), fn ($circleQuery) => $circleQuery->when($industryCircleIds !== [], fn ($inner) => $inner->whereIn('id', $industryCircleIds), fn ($inner) => $inner->whereRaw('1 = 0')))->whereNotNull('country')->select('country')->distinct()->orderBy('country')->pluck('country')
             : City::query()->whereNotNull('country')->select('country')->distinct()->orderBy('country')->pluck('country');
 
         $typeOptions = Schema::hasColumn('circles', 'type')
-            ? Circle::query()->whereNotNull('type')->select('type')->distinct()->orderBy('type')->pluck('type')
+            ? Circle::query()->when(is_array($industryCircleIds), fn ($circleQuery) => $circleQuery->when($industryCircleIds !== [], fn ($inner) => $inner->whereIn('id', $industryCircleIds), fn ($inner) => $inner->whereRaw('1 = 0')))->whereNotNull('type')->select('type')->distinct()->orderBy('type')->pluck('type')
             : collect();
 
         $meetingModeOptions = collect(Circle::MEETING_MODE_OPTIONS);
@@ -341,6 +356,10 @@ class CircleController extends Controller
         $allowedCircleIds = $request->attributes->get('allowed_circle_ids');
 
         if (is_array($allowedCircleIds) && ! in_array($circle->id, $allowedCircleIds, true)) {
+            abort(403);
+        }
+
+        if (! $this->industryScope->circleInScope(Auth::guard('admin')->user(), (string) $circle->id)) {
             abort(403);
         }
 

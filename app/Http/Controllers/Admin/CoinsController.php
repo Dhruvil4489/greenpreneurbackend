@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Circle;
 use App\Models\CoinLedger;
 use App\Models\User;
+use App\Services\Admin\IndustryScopeService;
 use App\Support\AdminCircleScope;
 use App\Support\Coins\CoinLedgerFormatter;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -44,7 +45,7 @@ class CoinsController extends Controller
         return view('admin.coins.index', [
             'members' => $members,
             'filters' => $filters,
-            'circles' => Circle::query()->orderBy('name')->get(['id', 'name']),
+            'circles' => $this->circleOptions(auth('admin')->user()),
             'activityStats' => $activityStats,
         ]);
     }
@@ -441,11 +442,24 @@ class CoinsController extends Controller
     private function applyCircleScopeToUsersQuery($query, $admin): void
     {
         AdminCircleScope::applyToUsersQuery($query, $admin);
+        app(IndustryScopeService::class)->applyToUsersQuery($query, $admin);
+    }
+
+    private function circleOptions($admin)
+    {
+        $query = Circle::query()->orderBy('name');
+
+        if (app(IndustryScopeService::class)->isIndustryDirector($admin)) {
+            $circleIds = app(IndustryScopeService::class)->circleIdsForAdmin($admin);
+            $query->when($circleIds !== [], fn ($q) => $q->whereIn('id', $circleIds), fn ($q) => $q->whereRaw('1 = 0'));
+        }
+
+        return $query->get(['id', 'name']);
     }
 
     private function ensureMemberInScope(string $userId, $admin): void
     {
-        if (! AdminCircleScope::userInScope($admin, $userId)) {
+        if (! AdminCircleScope::userInScope($admin, $userId) || ! app(IndustryScopeService::class)->userInScope($admin, $userId)) {
             abort(403);
         }
     }

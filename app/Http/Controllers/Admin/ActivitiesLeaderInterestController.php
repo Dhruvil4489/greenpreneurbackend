@@ -6,10 +6,12 @@ use Carbon\Carbon;
 use App\Http\Controllers\Controller;
 use App\Models\LeaderInterestSubmission;
 use App\Models\User;
+use App\Services\Admin\IndustryScopeService;
 use App\Support\AdminCircleScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
 class ActivitiesLeaderInterestController extends Controller
@@ -114,6 +116,10 @@ class ActivitiesLeaderInterestController extends Controller
         }
 
         AdminCircleScope::applyToActivityQuery($query, Auth::guard('admin')->user(), 'leader_interest_submissions.user_id', null);
+        app(IndustryScopeService::class)->applyToActivityQuery($query, Auth::guard('admin')->user(), array_filter([
+            'leader_interest_submissions.user_id',
+            Schema::hasColumn('leader_interest_submissions', 'member_id') ? 'leader_interest_submissions.member_id' : null,
+        ]));
 
         $items = $query
             ->orderByDesc('created_at')
@@ -164,7 +170,7 @@ class ActivitiesLeaderInterestController extends Controller
     {
         $admin = Auth::guard('admin')->user();
 
-        if (! AdminCircleScope::userInScope($admin, $peer->id)) {
+        if (! AdminCircleScope::userInScope($admin, $peer->id) || ! app(IndustryScopeService::class)->userInScope($admin, (string) $peer->id)) {
             abort(403);
         }
 

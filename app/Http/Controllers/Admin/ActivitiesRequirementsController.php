@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use Carbon\Carbon;
 use App\Http\Controllers\Controller;
 use App\Models\Requirement;
+use App\Services\Admin\IndustryScopeService;
 use App\Support\AdminCircleScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -331,7 +332,10 @@ class ActivitiesRequirementsController extends Controller
 
     private function applyScopeToActivityQuery($query, string $primaryColumn): void
     {
-        AdminCircleScope::applyToActivityQuery($query, auth('admin')->user(), $primaryColumn, null);
+        $admin = auth('admin')->user();
+
+        AdminCircleScope::applyToActivityQuery($query, $admin, $primaryColumn, null);
+        app(IndustryScopeService::class)->applyToActivityQuery($query, $admin, [$primaryColumn]);
     }
 
     private function formatUserName(?string $displayName, ?string $firstName, ?string $lastName): string

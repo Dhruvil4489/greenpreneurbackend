@@ -1,0 +1,1877 @@
+{
+  "info": {
+    "name": "DED API v1",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "ded_peer_id",
+      "value": ""
+    },
+    {
+      "key": "circle_id",
+      "value": ""
+    },
+    {
+      "key": "testimonial_id",
+      "value": ""
+    },
+    {
+      "key": "requirement_id",
+      "value": ""
+    },
+    {
+      "key": "referral_id",
+      "value": ""
+    },
+    {
+      "key": "p2p_meeting_id",
+      "value": ""
+    },
+    {
+      "key": "business_deal_id",
+      "value": ""
+    },
+    {
+      "key": "visitor_request_id",
+      "value": ""
+    },
+    {
+      "key": "event_request_id",
+      "value": ""
+    },
+    {
+      "key": "coin_claim_id",
+      "value": ""
+    },
+    {
+      "key": "circle_join_request_id",
+      "value": ""
+    },
+    {
+      "key": "pending_impact_id",
+      "value": ""
+    },
+    {
+      "key": "ded_email",
+      "value": "dhruv99h@gmail.com"
+    },
+    {
+      "key": "ded_otp",
+      "value": "1234"
+    }
+  ],
+  "item": [
+    {
+      "name": "DED Activities - Recommend A Peer",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/activities/recommend-a-peer?per_page=20",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "activities",
+            "recommend-a-peer"
+          ],
+          "query": [
+            {
+              "key": "per_page",
+              "value": "20"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "DED Activities - Find Build Collaborations",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/activities/find-build-collaborations?per_page=20",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "activities",
+            "find-build-collaborations"
+          ],
+          "query": [
+            {
+              "key": "per_page",
+              "value": "20"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "DED Activities - Register A Visitor",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/activities/register-a-visitor?per_page=20",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "activities",
+            "register-a-visitor"
+          ],
+          "query": [
+            {
+              "key": "per_page",
+              "value": "20"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "DED Referral Report",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/referral-report?per_page=20",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "referral-report"
+          ],
+          "query": [
+            {
+              "key": "per_page",
+              "value": "20"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "DED Life Impact",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/life-impact?per_page=20",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "life-impact"
+          ],
+          "query": [
+            {
+              "key": "per_page",
+              "value": "20"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "DED Auth - Request OTP",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{ded_email}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/auth/request-otp",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "auth",
+            "request-otp"
+          ]
+        }
+      }
+    },
+    {
+      "name": "DED Auth - Verify OTP",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{ded_email}}\",\n  \"otp\": \"{{ded_otp}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/auth/verify-otp",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "auth",
+            "verify-otp"
+          ]
+        }
+      }
+    },
+    {
+      "name": "DED Me",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/me",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "me"
+          ]
+        }
+      }
+    },
+    {
+      "name": "DED Dashboard",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/dashboard?circle_id={{circle_id}}&date_from=&date_to=",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "dashboard?circle_id={{circle_id}}&date_from=&date_to="
+          ]
+        }
+      }
+    },
+    {
+      "name": "DED Circles",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/circles?search=&status=&per_page=20",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "circles?search=&status=&per_page=20"
+          ]
+        }
+      }
+    },
+    {
+      "name": "DED Peers",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/peers?search=&circle_id={{circle_id}}&membership_status=&status=&per_page=20",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "peers?search=&circle_id={{circle_id}}&membership_status=&status=&per_page=20"
+          ]
+        }
+      }
+    },
+    {
+      "name": "DED Peer Detail",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/peers/{{ded_peer_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "peers",
+            "{{ded_peer_id}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Activity Summary",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/activities/summary?circle_id={{circle_id}}&search=&per_page=20",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "activities",
+            "summary?circle_id={{circle_id}}&search=&per_page=20"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Testimonials List",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/activities/testimonials?search=&circle_id={{circle_id}}&per_page=20",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "activities",
+            "testimonials?search=&circle_id={{circle_id}}&per_page=20"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Testimonials Detail",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/activities/testimonials/{{testimonial_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "activities",
+            "testimonials",
+            "{{testimonial_id}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Requirements List",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/activities/requirements?search=&circle_id={{circle_id}}&per_page=20",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "activities",
+            "requirements?search=&circle_id={{circle_id}}&per_page=20"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Requirements Detail",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/activities/requirements/{{requirement_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "activities",
+            "requirements",
+            "{{requirement_id}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Referrals List",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/activities/referrals?search=&circle_id={{circle_id}}&per_page=20",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "activities",
+            "referrals?search=&circle_id={{circle_id}}&per_page=20"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Referrals Detail",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/activities/referrals/{{referral_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "activities",
+            "referrals",
+            "{{referral_id}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "P2P Meetings List",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/activities/p2p-meetings?search=&circle_id={{circle_id}}&per_page=20",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "activities",
+            "p2p-meetings?search=&circle_id={{circle_id}}&per_page=20"
+          ]
+        }
+      }
+    },
+    {
+      "name": "P2P Meetings Detail",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/activities/p2p-meetings/{{p2p_meeting_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "activities",
+            "p2p-meetings",
+            "{{p2p_meeting_id}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Business Deals List",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/activities/business-deals?search=&circle_id={{circle_id}}&per_page=20",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "activities",
+            "business-deals?search=&circle_id={{circle_id}}&per_page=20"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Business Deals Detail",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/activities/business-deals/{{business_deal_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "activities",
+            "business-deals",
+            "{{business_deal_id}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Coins Summary",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/coins?search=&circle_id={{circle_id}}&per_page=20",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "coins?search=&circle_id={{circle_id}}&per_page=20"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Coins History",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/coins/history?user_id={{ded_peer_id}}&date_from=&date_to=&per_page=20",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "coins",
+            "history?user_id={{ded_peer_id}}&date_from=&date_to=&per_page=20"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Pending Requests Summary",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/pending-requests/summary",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "pending-requests",
+            "summary"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Visitor Registrations List",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/pending-requests/visitor-registrations?search=&status=&per_page=20",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "pending-requests",
+            "visitor-registrations?search=&status=&per_page=20"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Visitor Registrations Detail",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/pending-requests/visitor-registrations/{{visitor_request_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "pending-requests",
+            "visitor-registrations",
+            "{{visitor_request_id}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Visitor Registrations Approve",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/pending-requests/visitor-registrations/{{visitor_request_id}}/approve",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "pending-requests",
+            "visitor-registrations",
+            "{{visitor_request_id}}",
+            "approve"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"admin_note\": \"Approved from Postman.\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Visitor Registrations Reject",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/pending-requests/visitor-registrations/{{visitor_request_id}}/reject",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "pending-requests",
+            "visitor-registrations",
+            "{{visitor_request_id}}",
+            "reject"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"reason\": \"Rejected from Postman.\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Event Joining Requests List",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/pending-requests/event-joining-requests?search=&status=&per_page=20",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "pending-requests",
+            "event-joining-requests?search=&status=&per_page=20"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Event Joining Requests Detail",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/pending-requests/event-joining-requests/{{event_request_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "pending-requests",
+            "event-joining-requests",
+            "{{event_request_id}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Event Joining Requests Approve",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/pending-requests/event-joining-requests/{{event_request_id}}/approve",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "pending-requests",
+            "event-joining-requests",
+            "{{event_request_id}}",
+            "approve"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"admin_note\": \"Approved from Postman.\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Event Joining Requests Reject",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/pending-requests/event-joining-requests/{{event_request_id}}/reject",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "pending-requests",
+            "event-joining-requests",
+            "{{event_request_id}}",
+            "reject"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"reason\": \"Rejected from Postman.\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Coin Claims List",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/pending-requests/coin-claims?search=&status=&per_page=20",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "pending-requests",
+            "coin-claims?search=&status=&per_page=20"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Coin Claims Detail",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/pending-requests/coin-claims/{{coin_claim_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "pending-requests",
+            "coin-claims",
+            "{{coin_claim_id}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Coin Claims Approve",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/pending-requests/coin-claims/{{coin_claim_id}}/approve",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "pending-requests",
+            "coin-claims",
+            "{{coin_claim_id}}",
+            "approve"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"admin_note\": \"Approved from Postman.\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Coin Claims Reject",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/pending-requests/coin-claims/{{coin_claim_id}}/reject",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "pending-requests",
+            "coin-claims",
+            "{{coin_claim_id}}",
+            "reject"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"reason\": \"Rejected from Postman.\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Circle Joining Requests List",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/pending-requests/circle-joining-requests?search=&status=&per_page=20",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "pending-requests",
+            "circle-joining-requests?search=&status=&per_page=20"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Circle Joining Requests Detail",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/pending-requests/circle-joining-requests/{{circle_join_request_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "pending-requests",
+            "circle-joining-requests",
+            "{{circle_join_request_id}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Circle Joining Requests Approve",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/pending-requests/circle-joining-requests/{{circle_join_request_id}}/ded-approve",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "pending-requests",
+            "circle-joining-requests",
+            "{{circle_join_request_id}}",
+            "ded-approve"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"admin_note\": \"Approved from Postman.\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Circle Joining Requests Reject",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/pending-requests/circle-joining-requests/{{circle_join_request_id}}/reject",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "pending-requests",
+            "circle-joining-requests",
+            "{{circle_join_request_id}}",
+            "reject"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"reason\": \"Rejected from Postman.\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Pending Impacts List",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/pending-requests/pending-impacts?search=&status=&per_page=20",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "pending-requests",
+            "pending-impacts?search=&status=&per_page=20"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Pending Impacts Detail",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/pending-requests/pending-impacts/{{pending_impact_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "pending-requests",
+            "pending-impacts",
+            "{{pending_impact_id}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Pending Impacts Approve",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/pending-requests/pending-impacts/{{pending_impact_id}}/approve",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "pending-requests",
+            "pending-impacts",
+            "{{pending_impact_id}}",
+            "approve"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"admin_note\": \"Approved from Postman.\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Pending Impacts Reject",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/pending-requests/pending-impacts/{{pending_impact_id}}/reject",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "pending-requests",
+            "pending-impacts",
+            "{{pending_impact_id}}",
+            "reject"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"reason\": \"Rejected from Postman.\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Reports Referrals",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/reports/referrals?date_from=&date_to=",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "reports",
+            "referrals?date_from=&date_to="
+          ]
+        }
+      }
+    },
+    {
+      "name": "Reports Activities",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/reports/activities?date_from=&date_to=",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "reports",
+            "activities?date_from=&date_to="
+          ]
+        }
+      }
+    },
+    {
+      "name": "Reports Coins",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/reports/coins?date_from=&date_to=",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "reports",
+            "coins?date_from=&date_to="
+          ]
+        }
+      }
+    },
+    {
+      "name": "Reports Pending Requests",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/ded/reports/pending-requests",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "ded",
+            "reports",
+            "pending-requests"
+          ]
+        }
+      }
+    }
+  ]
+}

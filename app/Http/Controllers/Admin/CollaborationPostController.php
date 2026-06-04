@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\CollaborationPost;
 use App\Models\CollaborationType;
+use App\Services\Admin\IndustryScopeService;
 use App\Support\AdminCircleScope;
 use App\Support\CollaborationFormatter;
 use Carbon\Carbon;
@@ -39,6 +40,10 @@ class CollaborationPostController extends Controller
             ->latest('collaboration_posts.created_at');
 
         AdminCircleScope::applyToActivityQuery($query, Auth::guard('admin')->user(), 'collaboration_posts.user_id', null);
+        app(IndustryScopeService::class)->applyToActivityQuery($query, Auth::guard('admin')->user(), array_filter([
+            'collaboration_posts.user_id',
+            Schema::hasColumn('collaboration_posts', 'member_id') ? 'collaboration_posts.member_id' : null,
+        ]));
 
         $this->applyFilters($request, $query);
 
@@ -84,6 +89,10 @@ class CollaborationPostController extends Controller
             ->latest('collaboration_posts.created_at');
 
         AdminCircleScope::applyToActivityQuery($query, Auth::guard('admin')->user(), 'collaboration_posts.user_id', null);
+        app(IndustryScopeService::class)->applyToActivityQuery($query, Auth::guard('admin')->user(), array_filter([
+            'collaboration_posts.user_id',
+            Schema::hasColumn('collaboration_posts', 'member_id') ? 'collaboration_posts.member_id' : null,
+        ]));
 
         $this->applyFilters($request, $query);
 
@@ -168,7 +177,7 @@ class CollaborationPostController extends Controller
             ->with(['user', 'collaborationType'])
             ->findOrFail($id);
 
-        if (! AdminCircleScope::userInScope(Auth::guard('admin')->user(), (string) $post->user_id)) {
+        if (! AdminCircleScope::userInScope(Auth::guard('admin')->user(), (string) $post->user_id) || ! app(IndustryScopeService::class)->userInScope(Auth::guard('admin')->user(), (string) $post->user_id)) {
             abort(403);
         }
 

@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Event;
 
+use App\Models\User;
 use App\Services\Events\EventService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -59,15 +60,18 @@ class EventDetailResource extends JsonResource
                 'ends_at' => optional($this->recurrence_ends_at)->toISOString(),
             ],
         ];
-        $canRegister = app(EventService::class)->canRegister($this->resource, $request->user());
+        $unityUser = $request->user() instanceof User ? $request->user() : null;
+        $eventService = app(EventService::class);
+        $canRegister = $eventService->canRegister($this->resource, $unityUser);
+        $isEligible = $eventService->isEligible($this->resource, $unityUser);
 
         return $event + [
             'event' => $event,
             'can_register' => $canRegister['can_register'],
             'can_register_reason' => $canRegister['reason'],
             'eligibility' => [
-                'is_eligible' => app(EventService::class)->isEligible($this->resource, $request->user()),
-                'reason' => app(EventService::class)->isEligible($this->resource, $request->user()) ? null : 'User is not eligible for this event.',
+                'is_eligible' => $isEligible,
+                'reason' => $isEligible ? null : 'User is not eligible for this event.',
             ],
             'occurrences' => EventOccurrenceListResource::collection($this->whenLoaded('occurrences')),
             'upcoming_occurrences' => EventOccurrenceListResource::collection($this->whenLoaded('occurrences')),

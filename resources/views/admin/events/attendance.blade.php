@@ -24,5 +24,28 @@
             <tr><td colspan="12" class="text-center text-muted py-4">No registrations found.</td></tr>
         @endforelse
     </tbody></table></div></div>
+
+    <div class="card mt-3">
+        <div class="card-header fw-semibold">Scan History</div>
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead><tr><th>Scanned User</th><th>Scanner Person</th><th>Hotel</th><th>Status</th><th>Scanned Time</th><th>Device Info</th></tr></thead>
+                <tbody>
+                    @forelse(($scanLogs ?? collect()) as $log)
+                        <tr>
+                            <td>{{ $log->user?->display_name ?? $log->user?->email ?? data_get($log->meta, 'registration_id', '-') }}</td>
+                            <td>{{ $log->scanner?->name ?? '-' }}</td>
+                            <td>{{ $log->scanner?->hotel_name ?? '-' }}</td>
+                            <td>{{ $log->scan_status }}</td>
+                            <td>{{ optional($log->scanned_at)->toDateTimeString() ?? '-' }}</td>
+                            <td><small>{{ $log->device_info ? json_encode($log->device_info) : '-' }}</small></td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="6" class="text-center text-muted py-4">No scan history found.</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
 @endsection

@@ -108,7 +108,7 @@ class EventPaymentService
             'checkout_url' => $paymentUrl,
             'qr_code_url' => $requiresPayment && ($registration->payment_status ?? null) !== 'paid'
                 ? null
-                : ($registration->qr_code_url ?: app(EventQrService::class)->url($registration->qr_code_path)),
+                : ($registration->qr_code_path ? app(EventQrService::class)->url($registration->qr_code_path) : $registration->qr_code_url),
             'zoho_invoice_id' => $registration->zoho_invoice_id ?? null,
             'zoho_invoice_number' => $registration->zoho_invoice_number ?? null,
             'zoho_invoice_url' => $registration->zoho_invoice_url ?? null,

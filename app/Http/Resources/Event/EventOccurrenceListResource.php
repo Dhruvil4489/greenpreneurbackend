@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Event;
 
+use App\Models\User;
 use App\Services\Events\EventQrService;
 use App\Services\Events\EventService;
 use Illuminate\Http\Request;
@@ -17,7 +18,8 @@ class EventOccurrenceListResource extends JsonResource
         $registeredCount = (int) ($this->registered_count ?? 0);
         $qr = app(EventQrService::class);
         $eventService = app(EventService::class);
-        $canRegister = $eventService->canRegister($event, $request->user());
+        $unityUser = $request->user() instanceof User ? $request->user() : null;
+        $canRegister = $eventService->canRegister($event, $unityUser);
         $showOnlineUrl = (bool) $registration || (bool) ($event->is_public ?? false) || $event->visibility === 'public';
         $metadata = is_string($event->metadata) ? json_decode($event->metadata, true) : $event->metadata;
         $metadata = is_array($metadata) ? $metadata : [];
@@ -73,7 +75,7 @@ class EventOccurrenceListResource extends JsonResource
                 'payment_status' => $registration?->payment_status,
                 'razorpay_order_id' => $registration?->razorpay_order_id,
                 'checkout_url' => null,
-                'qr_code_url' => $registration ? ((($registration->payment_required ?? false) && ($registration->payment_status ?? null) !== 'paid') ? null : ($registration->qr_code_url ?: $qr->url($registration->qr_code_path))) : null,
+                'qr_code_url' => $registration ? ((($registration->payment_required ?? false) && ($registration->payment_status ?? null) !== 'paid') ? null : ($registration->qr_code_path ? $qr->url($registration->qr_code_path) : $registration->qr_code_url)) : null,
             ],
         ];
     }

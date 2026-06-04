@@ -1,10 +1,13 @@
 <?php
 
+use App\Exceptions\QrGenerationException;
 use App\Http\Middleware\AdminCircleScope;
 use App\Http\Middleware\AdminRoleMiddleware;
 use App\Http\Middleware\AllowFixedMembersToken;
 use App\Http\Middleware\EnsureAdminAuthenticated;
 use App\Http\Middleware\EnsureDedApiAccess;
+use App\Http\Middleware\EnsureScanAppUser;
+use App\Http\Middleware\EnsureUnityUser;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -30,6 +33,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'admin.circle' => AdminCircleScope::class,
             'fixed.members.token' => AllowFixedMembersToken::class,
             'ensure.ded.api' => EnsureDedApiAccess::class,
+            'scan.app.user' => EnsureScanAppUser::class,
+            'unity.user' => EnsureUnityUser::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
@@ -40,6 +45,13 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->render(function (Throwable $e, Request $request) {
             if (! ($request->is('api/*') || $request->expectsJson())) {
                 return null;
+            }
+
+            if ($e instanceof QrGenerationException) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ], 500);
             }
 
             if ($e instanceof ValidationException) {

@@ -33,7 +33,7 @@ class EventPaymentSyncService
             'registration' => $registration->fresh(['event', 'occurrence', 'user']),
             'payment_status' => $registration->payment_status,
             'zoho_invoice_status' => $registration->zoho_invoice_status,
-            'qr_code_url' => $registration->qr_code_url ?: app(EventQrService::class)->url($registration->qr_code_path),
+            'qr_code_url' => $registration->qr_code_path ? app(EventQrService::class)->url($registration->qr_code_path) : $registration->qr_code_url,
         ];
     }
 

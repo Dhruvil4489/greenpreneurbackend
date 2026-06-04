@@ -4,6 +4,7 @@ namespace App\Services\Events;
 
 use App\Models\EventOccurrence;
 use App\Models\EventRegistration;
+use App\Models\ScanAppUser;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -15,7 +16,24 @@ class EventCheckinService
 
     public function scan(string $qrToken, User $scanner, bool $force = false): EventRegistration
     {
-        return DB::transaction(function () use ($qrToken, $scanner, $force): EventRegistration {
+        return $this->scanRegistration($qrToken, $scanner, $force);
+    }
+
+    public function scanForScannerApp(string $qrToken, ScanAppUser $scanner, string $expectedEventId): EventRegistration
+    {
+        return $this->scanRegistration($qrToken, null, false, $expectedEventId, 'scan_app');
+    }
+
+    public function registrationForToken(string $qrToken): ?EventRegistration
+    {
+        return EventRegistration::query()
+            ->where('qr_token', $qrToken)
+            ->first(['id', 'event_id', 'occurrence_id', 'user_id', 'checkin_status']);
+    }
+
+    private function scanRegistration(string $qrToken, ?User $scanner = null, bool $force = false, ?string $expectedEventId = null, string $attendanceSource = 'qr_scan'): EventRegistration
+    {
+        return DB::transaction(function () use ($qrToken, $scanner, $force, $expectedEventId, $attendanceSource): EventRegistration {
             $registration = EventRegistration::query()
                 ->with(['event.circle', 'occurrence', 'user'])
                 ->where('qr_token', $qrToken)
@@ -24,6 +42,9 @@ class EventCheckinService
 
             if (! $registration) {
                 throw ValidationException::withMessages(['qr_token' => 'QR token not found.']);
+            }
+            if ($expectedEventId !== null && (string) $registration->event_id !== (string) $expectedEventId) {
+                throw ValidationException::withMessages(['event' => 'QR code does not belong to this event.']);
             }
             if ($registration->status === 'cancelled') {
                 throw ValidationException::withMessages(['registration' => 'Registration is cancelled.']);
@@ -40,7 +61,7 @@ class EventCheckinService
             if (! $registration->event || ! $registration->event->qr_checkin_enabled) {
                 throw ValidationException::withMessages(['event' => 'QR check-in is not enabled for this event.']);
             }
-            if ($registration->checkin_status === 'checked_in' && ! ($force && $this->events->isAdmin($scanner))) {
+            if ($registration->checkin_status === 'checked_in' && ! ($force && $scanner && $this->events->isAdmin($scanner))) {
                 throw ValidationException::withMessages(['registration' => 'Attendance already marked.']);
             }
 
@@ -48,14 +69,17 @@ class EventCheckinService
                 'status' => 'attended',
                 'checkin_status' => 'checked_in',
                 'checked_in_at' => now(),
-                'checked_in_by_user_id' => $scanner->id,
             ];
+
+            if ($scanner) {
+                $updates['checked_in_by_user_id'] = $scanner->id;
+            }
 
             if (Schema::hasColumn('event_registrations', 'last_qr_scan_at')) {
                 $updates['last_qr_scan_at'] = now();
             }
             if (Schema::hasColumn('event_registrations', 'attendance_source')) {
-                $updates['attendance_source'] = 'qr_scan';
+                $updates['attendance_source'] = $attendanceSource;
             }
 
             $registration->forceFill($updates)->save();

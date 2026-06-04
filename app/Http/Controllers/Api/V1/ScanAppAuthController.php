@@ -15,15 +15,23 @@ class ScanAppAuthController extends BaseApiController
             'password' => ['required', 'string'],
         ]);
 
-        $scanner = ScanAppUser::query()
-            ->where('username', $credentials['username'])
-            ->first();
+        $scanner = ScanAppUser::where('username', $credentials['username'])->first();
 
-        if (! $scanner || ! $scanner->is_active || ! $scanner->checkPassword($credentials['password'])) {
-            return $this->error('Invalid credentials or inactive scanner account.', 401);
+        if (! $scanner) {
+            return $this->error('Invalid username or password.', 401);
         }
 
-        $scanner->forceFill(['last_login_at' => now()])->save();
+        if (! $scanner->is_active) {
+            return $this->error('Scanner account is inactive.', 403);
+        }
+
+        if (! $scanner->checkPassword($credentials['password'])) {
+            return $this->error('Invalid username or password.', 401);
+        }
+
+        $scanner->forceFill([
+            'last_login_at' => now(),
+        ])->save();
 
         return $this->success([
             'token' => $scanner->createToken('scan-app-token')->plainTextToken,
@@ -34,6 +42,7 @@ class ScanAppAuthController extends BaseApiController
     public function me(Request $request)
     {
         $scanner = $this->scanner($request);
+
         if (! $scanner) {
             return $this->error('Scanner authentication required.', 401);
         }
@@ -42,12 +51,15 @@ class ScanAppAuthController extends BaseApiController
             return $this->error('Scanner account is inactive.', 403);
         }
 
-        return $this->success(['scanner' => $this->scannerPayload($scanner)], 'Scanner profile fetched successfully.');
+        return $this->success([
+            'scanner' => $this->scannerPayload($scanner),
+        ], 'Scanner profile fetched successfully.');
     }
 
     public function logout(Request $request)
     {
         $scanner = $this->scanner($request);
+
         if (! $scanner) {
             return $this->error('Scanner authentication required.', 401);
         }
@@ -73,6 +85,8 @@ class ScanAppAuthController extends BaseApiController
             'hotel_name' => $scanner->hotel_name,
             'event_id' => $scanner->event_id,
             'event_name' => $scanner->event_name,
+            'is_active' => (bool) $scanner->is_active,
+            'last_login_at' => optional($scanner->last_login_at)->toISOString(),
         ];
     }
 }

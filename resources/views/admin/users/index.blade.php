@@ -21,29 +21,8 @@
         <input type="hidden" name="sort" value="{{ $filters['sort'] }}">
         <input type="hidden" name="dir" value="{{ $filters['dir'] }}">
     </form>
-    <div class="d-flex justify-content-end align-items-center mb-3 gap-2 flex-wrap">
-        <a href="{{ route('admin.users.import') }}" class="btn btn-outline-primary btn-sm">Import</a>
-        <button type="button" class="btn btn-outline-secondary btn-sm" id="exportCsvBtn">Export CSV</button>
-        <a href="{{ route('admin.users.create') }}" class="btn btn-primary btn-sm">Add Peer</a>
-    </div>
-
-    <div class="text-center mb-3">
-        <div class="small text-muted mb-2">Approve selected free peers or free trial peers.</div>
-        <div class="d-flex justify-content-center align-items-center gap-2 flex-wrap">
-            <form id="bulkApproveMembershipForm" method="POST" action="{{ route('admin.users.bulk-approve-membership') }}" class="m-0">
-                @csrf
-                <button type="submit" class="btn btn-success btn-sm">
-                    <i class="bi bi-check-circle me-1"></i>Approve Selected
-                </button>
-            </form>
-            <button type="button" class="btn btn-sm text-white" style="background-color: #6f42c1; border-color: #6f42c1;" id="approveWithDatesBtn" data-bs-toggle="modal" data-bs-target="#approveMembershipDatesModal">
-                <i class="bi bi-calendar-check me-1"></i>Approve With Dates
-            </button>
-        </div>
-    </div>
-
-    <div class="d-flex flex-wrap justify-content-between align-items-end mb-3 gap-2">
-        <div class="d-flex align-items-center gap-3 flex-wrap">
+    <div class="d-flex flex-wrap justify-content-between align-items-end mb-3 gap-3">
+        <div class="d-flex align-items-center gap-3 flex-wrap order-2 order-lg-1">
             <div class="d-flex align-items-center gap-2">
                 <label for="perPage" class="form-label mb-0 small text-muted">Rows per page:</label>
                 <select id="perPage" name="per_page" class="form-select form-select-sm" style="width: 90px;">
@@ -60,30 +39,53 @@
                 @endif
             </div>
         </div>
-        <div class="d-flex align-items-end gap-2 flex-wrap justify-content-end ms-auto">
-            <div class="d-flex flex-column gap-1" style="min-width: 200px;">
-                <label for="joinedFilter" class="form-label form-label-sm mb-0 text-muted small">Date Filter</label>
-                <select name="joined_filter" id="joinedFilter" form="usersFiltersForm" class="form-select form-select-sm">
-                    <option value="all" @selected(($filters['joined_filter'] ?? 'all') === 'all')>All Joined Dates</option>
-                    <option value="last_month" @selected(($filters['joined_filter'] ?? 'all') === 'last_month')>Last Month</option>
-                    <option value="last_week" @selected(($filters['joined_filter'] ?? 'all') === 'last_week')>Last Week</option>
-                    <option value="yesterday" @selected(($filters['joined_filter'] ?? 'all') === 'yesterday')>Yesterday</option>
-                    <option value="custom" @selected(($filters['joined_filter'] ?? 'all') === 'custom')>Custom Range</option>
-                </select>
+
+        <div class="text-center flex-grow-1 order-1 order-lg-2">
+            <div class="small text-muted mb-2">Approve selected free peers or free trial peers.</div>
+            <div class="d-flex justify-content-center align-items-center gap-2 flex-wrap">
+                <form id="bulkApproveMembershipForm" method="POST" action="{{ route('admin.users.bulk-approve-membership') }}" class="m-0">
+                    @csrf
+                    <button type="submit" class="btn btn-success btn-sm">
+                        <i class="bi bi-check-circle me-1"></i>Approve Selected
+                    </button>
+                </form>
+                <button type="button" class="btn btn-sm text-white" style="background-color: #6f42c1; border-color: #6f42c1;" id="approveWithDatesBtn" data-bs-toggle="modal" data-bs-target="#approveMembershipDatesModal">
+                    <i class="bi bi-calendar-check me-1"></i>Approve With Dates
+                </button>
             </div>
-            <div id="joinedCustomRange" class="d-flex gap-2 flex-wrap">
-                <div class="d-flex flex-column gap-1">
-                    <label for="joinedFrom" class="form-label form-label-sm mb-0 text-muted small">From</label>
-                    <input id="joinedFrom" type="date" name="joined_from" form="usersFiltersForm" class="form-control form-control-sm" value="{{ request('joined_from', $filters['joined_from'] ?? '') }}">
-                </div>
-                <div class="d-flex flex-column gap-1">
-                    <label for="joinedTo" class="form-label form-label-sm mb-0 text-muted small">To</label>
-                    <input id="joinedTo" type="date" name="joined_to" form="usersFiltersForm" class="form-control form-control-sm" value="{{ request('joined_to', $filters['joined_to'] ?? '') }}">
-                </div>
+        </div>
+
+        <div class="d-flex flex-column align-items-end gap-2 ms-lg-auto order-3">
+            <div class="d-flex align-items-center gap-2 flex-wrap justify-content-end mt-3 mt-lg-4">
+                <a href="{{ route('admin.users.import') }}" class="btn btn-outline-primary btn-sm">Import</a>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="exportCsvBtn">Export CSV</button>
+                <a href="{{ route('admin.users.create') }}" class="btn btn-primary btn-sm">Add Peer</a>
             </div>
-            <div class="d-flex gap-2">
-                <button type="submit" form="usersFiltersForm" class="btn btn-sm btn-primary">Apply</button>
-                <a class="btn btn-sm btn-outline-secondary" href="{{ route('admin.users.index') }}">Reset</a>
+            <div class="d-flex align-items-end gap-2 flex-wrap justify-content-end">
+                <div class="d-flex flex-column gap-1" style="min-width: 200px;">
+                    <label for="joinedFilter" class="form-label form-label-sm mb-0 text-muted small">Date Filter</label>
+                    <select name="joined_filter" id="joinedFilter" form="usersFiltersForm" class="form-select form-select-sm">
+                        <option value="all" @selected(($filters['joined_filter'] ?? 'all') === 'all')>All Joined Dates</option>
+                        <option value="last_month" @selected(($filters['joined_filter'] ?? 'all') === 'last_month')>Last Month</option>
+                        <option value="last_week" @selected(($filters['joined_filter'] ?? 'all') === 'last_week')>Last Week</option>
+                        <option value="yesterday" @selected(($filters['joined_filter'] ?? 'all') === 'yesterday')>Yesterday</option>
+                        <option value="custom" @selected(($filters['joined_filter'] ?? 'all') === 'custom')>Custom Range</option>
+                    </select>
+                </div>
+                <div id="joinedCustomRange" class="d-flex gap-2 flex-wrap">
+                    <div class="d-flex flex-column gap-1">
+                        <label for="joinedFrom" class="form-label form-label-sm mb-0 text-muted small">From</label>
+                        <input id="joinedFrom" type="date" name="joined_from" form="usersFiltersForm" class="form-control form-control-sm" value="{{ request('joined_from', $filters['joined_from'] ?? '') }}">
+                    </div>
+                    <div class="d-flex flex-column gap-1">
+                        <label for="joinedTo" class="form-label form-label-sm mb-0 text-muted small">To</label>
+                        <input id="joinedTo" type="date" name="joined_to" form="usersFiltersForm" class="form-control form-control-sm" value="{{ request('joined_to', $filters['joined_to'] ?? '') }}">
+                    </div>
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="submit" form="usersFiltersForm" class="btn btn-sm btn-primary">Apply</button>
+                    <a class="btn btn-sm btn-outline-secondary" href="{{ route('admin.users.index') }}">Reset</a>
+                </div>
             </div>
         </div>
     </div>

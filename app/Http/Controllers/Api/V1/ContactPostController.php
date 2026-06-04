@@ -6,8 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\ContactPost;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -46,7 +46,11 @@ class ContactPostController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        $validated = $request->validate($this->rules());
+        $validated = $this->validatedPayload($request);
+
+        if ($validated instanceof JsonResponse) {
+            return $validated;
+        }
 
         try {
             $validated['user_id'] = optional($this->authenticatedUser($request))->id;
@@ -89,7 +93,11 @@ class ContactPostController extends Controller
 
     public function update(Request $request, string $id): JsonResponse
     {
-        $validated = $request->validate($this->rules(true));
+        $validated = $this->validatedPayload($request, true);
+
+        if ($validated instanceof JsonResponse) {
+            return $validated;
+        }
 
         try {
             $contactPost = $this->findContactPost($request, $id);
@@ -151,33 +159,48 @@ class ContactPostController extends Controller
         }
     }
 
+    private function validatedPayload(Request $request, bool $isUpdate = false): array|JsonResponse
+    {
+        $validator = Validator::make($request->all(), $this->rules($isUpdate));
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'status' => false,
+                'message' => 'Validation failed',
+                'data' => $validator->errors(),
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        return $validator->validated();
+    }
+
     private function rules(bool $isUpdate = false): array
     {
         return [
             'full_name' => $isUpdate
                 ? ['sometimes', 'required', 'string', 'max:255']
                 : ['required', 'string', 'max:255'],
-            'phonetic_name' => ['nullable', 'string', 'max:255'],
-            'mobile_number' => ['nullable', 'string', 'max:30'],
-            'alternate_mobile_number' => ['nullable', 'string', 'max:30'],
+            'phone' => ['nullable', 'string', 'max:30'],
+            'first_name' => ['nullable', 'string', 'max:255'],
+            'middle_name' => ['nullable', 'string', 'max:255'],
+            'last_name' => ['nullable', 'string', 'max:255'],
+            'nickname' => ['nullable', 'string', 'max:255'],
             'email' => ['nullable', 'email', 'max:255'],
             'company' => ['nullable', 'string', 'max:255'],
             'job_title' => ['nullable', 'string', 'max:255'],
-            'address' => ['nullable', 'string'],
-            'im' => ['nullable', 'string'],
-            'contact_date' => ['nullable', 'date'],
-            'related_persons' => ['nullable', 'array'],
-            'related_persons.*.name' => ['nullable', 'string', 'max:255'],
-            'related_persons.*.relation' => ['nullable', 'string', 'max:255'],
-            'related_persons.*.phone' => ['nullable', 'string', 'max:30'],
-            'nickname' => ['nullable', 'string', 'max:255'],
-            'website' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string'],
-            'source_accounts' => ['nullable', 'array'],
-            'source_accounts.*.account_type' => ['nullable', 'string', 'max:100'],
-            'source_accounts.*.account_name' => ['nullable', 'string', 'max:255'],
-            'source_accounts.*.contact_count' => ['nullable', 'integer', 'min:0'],
-            'follow_system' => ['nullable', 'boolean'],
+            'emails' => ['nullable', 'array'],
+            'emails.*' => ['nullable', 'email', 'max:255'],
+            'phones' => ['nullable', 'array'],
+            'phones.*' => ['nullable', 'string', 'max:30'],
+            'addresses' => ['nullable', 'array'],
+            'addresses.*.street' => ['nullable', 'string', 'max:255'],
+            'addresses.*.city' => ['nullable', 'string', 'max:255'],
+            'addresses.*.state' => ['nullable', 'string', 'max:255'],
+            'addresses.*.postalCode' => ['nullable', 'string', 'max:50'],
+            'addresses.*.country' => ['nullable', 'string', 'max:255'],
         ];
     }
 
@@ -220,21 +243,18 @@ class ContactPostController extends Controller
             'id' => $contactPost->id,
             'user_id' => $contactPost->user_id,
             'full_name' => $contactPost->full_name,
-            'phonetic_name' => $contactPost->phonetic_name,
-            'mobile_number' => $contactPost->mobile_number,
-            'alternate_mobile_number' => $contactPost->alternate_mobile_number,
+            'phone' => $contactPost->phone,
+            'first_name' => $contactPost->first_name,
+            'middle_name' => $contactPost->middle_name,
+            'last_name' => $contactPost->last_name,
+            'nickname' => $contactPost->nickname,
             'email' => $contactPost->email,
             'company' => $contactPost->company,
             'job_title' => $contactPost->job_title,
-            'address' => $contactPost->address,
-            'im' => $contactPost->im,
-            'contact_date' => optional($contactPost->contact_date)->toDateString(),
-            'related_persons' => $contactPost->related_persons,
-            'nickname' => $contactPost->nickname,
-            'website' => $contactPost->website,
             'notes' => $contactPost->notes,
-            'source_accounts' => $contactPost->source_accounts,
-            'follow_system' => $contactPost->follow_system,
+            'emails' => $contactPost->emails ?? [],
+            'phones' => $contactPost->phones ?? [],
+            'addresses' => $contactPost->addresses ?? [],
             'created_at' => optional($contactPost->created_at)->toJSON(),
             'updated_at' => optional($contactPost->updated_at)->toJSON(),
         ];
@@ -242,15 +262,9 @@ class ContactPostController extends Controller
 
     private function exceptionResponse(string $message, Throwable $exception): JsonResponse
     {
-        $payload = [
+        return response()->json([
             'success' => false,
             'message' => $message,
-        ];
-
-        if (App::environment('local')) {
-            $payload['error'] = $exception->getMessage();
-        }
-
-        return response()->json($payload, 500);
+        ], 500);
     }
 }

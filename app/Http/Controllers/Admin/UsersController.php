@@ -1961,9 +1961,23 @@ class UsersController extends Controller
 
             $attributes = [
                 'membership_status' => $approvedMembershipStatus,
-                'membership_starts_at' => $startDate->copy()->startOfDay(),
-                'membership_ends_at' => $endDate->copy()->endOfDay(),
             ];
+
+            if (Schema::hasColumn('users', 'membership_start_date')) {
+                $attributes['membership_start_date'] = $startDate->copy()->toDateString();
+            }
+
+            if (Schema::hasColumn('users', 'membership_end_date')) {
+                $attributes['membership_end_date'] = $endDate->copy()->toDateString();
+            }
+
+            if (Schema::hasColumn('users', 'membership_starts_at')) {
+                $attributes['membership_starts_at'] = $startDate->copy()->startOfDay();
+            }
+
+            if (Schema::hasColumn('users', 'membership_ends_at')) {
+                $attributes['membership_ends_at'] = $endDate->copy()->endOfDay();
+            }
 
             if (Schema::hasColumn('users', 'membership_expiry')) {
                 $attributes['membership_expiry'] = $endDate->copy()->endOfDay();

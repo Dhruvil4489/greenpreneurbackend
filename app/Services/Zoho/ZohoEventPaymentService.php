@@ -3,7 +3,7 @@
 namespace App\Services\Zoho;
 
 use App\Models\EventRegistration;
-use App\Services\Events\EventQrService;
+use App\Services\Events\EventRegistrationQrService;
 use App\Support\Zoho\ZohoBillingClient;
 use App\Support\Zoho\ZohoBillingTokenService;
 use Illuminate\Support\Facades\DB;
@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Schema;
 
 class ZohoEventPaymentService
 {
-    public function __construct(private readonly ZohoBillingClient $client, private readonly ZohoBillingTokenService $tokenService, private readonly EventQrService $qrService) {}
+    public function __construct(private readonly ZohoBillingClient $client, private readonly ZohoBillingTokenService $tokenService, private readonly EventRegistrationQrService $registrationQr) {}
     public function getAccessToken(): string { return $this->tokenService->getAccessToken(); }
 
     public function findOrCreateCustomer(EventRegistration $registration): EventRegistration
@@ -134,7 +134,7 @@ class ZohoEventPaymentService
 
     public function generateQrAfterPayment(EventRegistration $registration): EventRegistration
     {
-        if (empty($registration->qr_code_path) && empty($registration->qr_code_url)) { $this->qrService->generateAndStore($registration); Log::info('zoho_event_qr_generated', ['event_registration_id' => $registration->id]); }
+        $registration = $this->registrationQr->ensureQrGenerated($registration);
         Log::info('zoho_event_payment_success', ['event_registration_id' => $registration->id]);
         return $registration->fresh(['event','occurrence','user']);
     }

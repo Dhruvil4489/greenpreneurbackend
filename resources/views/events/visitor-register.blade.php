@@ -32,8 +32,9 @@
 </head>
 <body>
 @php
-    $paymentUrl = $payment['payment_url'] ?? $payment['checkout_url'] ?? null;
-    $paymentRequired = (bool) ($payment['payment_required'] ?? $registration?->payment_required ?? false);
+    $paymentUrl = $payment['payment_url'] ?? $payment['checkout_url'] ?? $payment['zoho_checkout_url'] ?? null;
+    $paymentStatus = strtolower((string) ($payment['payment_status'] ?? $registration?->payment_status ?? ''));
+    $paymentRequired = (bool) ($payment['payment_required'] ?? $registration?->payment_required ?? false) && ! in_array($paymentStatus, ['paid', 'success', 'completed'], true);
 @endphp
 <div class="page">
     <section class="card">
@@ -71,7 +72,7 @@
                 </div>
             @else
                 <div class="alert alert-success">
-                    <strong>Visitor registered successfully.</strong>
+                    <strong>{{ in_array($paymentStatus, ['paid', 'success', 'completed'], true) ? 'Payment completed successfully.' : 'Visitor registered successfully.' }}</strong>
                     <div>Your registration ID is {{ $registration->id }}.</div>
                 </div>
                 @if($qr)
@@ -91,6 +92,7 @@
         </section>
     @endif
 
+    @unless($registration)
     <section class="card">
         <h2>Visitor details</h2>
         @if($errors->any())
@@ -181,6 +183,7 @@
             </div>
         </form>
     </section>
+    @endunless
 </div>
 </body>
 </html>

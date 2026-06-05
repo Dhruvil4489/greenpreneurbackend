@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\BaseApiController;
 use App\Models\EventRegistration;
 use App\Models\User;
 use App\Services\Events\EventQrService;
+use App\Services\Events\EventRegistrationQrService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -13,7 +14,10 @@ use Throwable;
 
 class MyEventQrController extends BaseApiController
 {
-    public function __construct(private readonly EventQrService $qr) {}
+    public function __construct(
+        private readonly EventQrService $qr,
+        private readonly EventRegistrationQrService $registrationQr,
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -84,38 +88,14 @@ class MyEventQrController extends BaseApiController
 
     private function ensureQr(EventRegistration $registration): EventRegistration
     {
-        $updated = false;
-
-        if (empty($registration->qr_token)) {
-            $registration->forceFill(['qr_token' => $this->uniqueQrToken()])->save();
-            $updated = true;
-        }
-
-        if (empty($registration->qr_code_path) && empty($registration->qr_code_url)) {
-            try {
-                $this->qr->generateAndStore($registration->fresh() ?? $registration);
-                $updated = true;
-            } catch (Throwable $exception) {
-                Log::error('my_events_with_qr_generation_failed', [
-                    'registration_id' => (string) $registration->id,
-                    'event_id' => (string) $registration->event_id,
-                    'exception' => $exception::class,
-                    'message' => $exception->getMessage(),
-                ]);
-            }
-        }
-
-        if ($updated) {
-            return $registration->fresh(['event', 'occurrence']) ?? $registration;
-        }
-
-        return $registration;
+        return $this->registrationQr->ensureQrGenerated($registration)->fresh(['event', 'occurrence']) ?? $registration;
     }
 
     private function qrCodeUrl(EventRegistration $registration): ?string
     {
-        if (! empty($registration->qr_code_path)) {
-            return $this->qr->url($registration->qr_code_path);
+        $ensuredUrl = $this->registrationQr->qrCodeUrl($registration);
+        if (! empty($ensuredUrl)) {
+            return $ensuredUrl;
         }
 
         if (! empty($registration->qr_code_url)) {
@@ -146,15 +126,6 @@ class MyEventQrController extends BaseApiController
         }
 
         return null;
-    }
-
-    private function uniqueQrToken(): string
-    {
-        do {
-            $token = $this->qr->generateToken();
-        } while (EventRegistration::query()->where('qr_token', $token)->exists());
-
-        return $token;
     }
 
     private function metadata(mixed $metadata): array

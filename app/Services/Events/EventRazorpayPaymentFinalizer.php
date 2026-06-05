@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Schema;
 class EventRazorpayPaymentFinalizer
 {
     public function __construct(
-        private readonly EventQrService $qr,
+        private readonly EventRegistrationQrService $registrationQr,
         private readonly EventZohoInvoiceSyncService $zohoInvoices,
     ) {}
 
@@ -32,10 +32,7 @@ class EventRazorpayPaymentFinalizer
                 Log::info('payment_success_registration_updated', ['event_registration_id' => (string) $locked->id]);
             }
 
-            if (empty($locked->qr_code_path) && empty($locked->qr_code_url)) {
-                $this->qr->generateAndStore($locked);
-                Log::info('qr_generated_after_payment', ['event_registration_id' => (string) $locked->id]);
-            }
+            $locked = $this->registrationQr->ensureQrGenerated($locked);
 
             return $locked->fresh(['event.circle', 'occurrence', 'user']);
         });

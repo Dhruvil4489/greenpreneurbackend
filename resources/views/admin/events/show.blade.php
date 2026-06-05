@@ -29,19 +29,29 @@
 
     <div class="card mt-3">
         <div class="card-header">Registrations</div>
-        <div class="table-responsive"><table class="table table-striped mb-0"><thead><tr><th>Attendee</th><th>Type</th><th>Gateway</th><th>Payment</th><th>Razorpay</th><th>Amount</th><th>Invoice</th><th>QR</th><th>Check-in</th></tr></thead><tbody>
+        <div class="table-responsive"><table class="table table-striped mb-0"><thead><tr><th>Attendee</th><th>Type</th><th>Gateway</th><th>Payment</th><th>Payment ref</th><th>Amount</th><th>Invoice</th><th>QR</th><th>Check-in</th></tr></thead><tbody>
         @forelse($event->registrations as $registration)
             @php
                 $attendeeName = $registration->user ? ($registration->user->display_name ?? trim(($registration->user->first_name ?? '').' '.($registration->user->last_name ?? ''))) : $registration->visitor_name;
                 $attendeeEmail = $registration->user?->email ?? $registration->visitor_email;
-                $hasQr = !empty($registration->qr_code_url) || !empty($registration->qr_code_path);
+                $hasQr = !empty($registration->qr_code_url) || !empty($registration->qr_code_path) || !empty($registration->qr_code_svg);
+                $gateway = $registration->payment_gateway ?: null;
+                $gatewayLabel = match ($gateway) {
+                    'zoho_billing_payment_link' => 'Zoho Billing',
+                    'razorpay' => 'Razorpay',
+                    default => $registration->payment_required ? ($gateway ?: '—') : '—',
+                };
+                $paymentStatus = strtolower((string) ($registration->payment_status ?? ''));
+                $paymentLabel = in_array($paymentStatus, ['paid', 'success', 'completed'], true) ? 'Paid' : ($paymentStatus === 'failed' ? 'Failed' : ($paymentStatus === 'pending' ? 'Pending' : ($registration->payment_status ?? '—')));
+                $paymentBadge = in_array($paymentStatus, ['paid', 'success', 'completed'], true) ? 'success' : ($paymentStatus === 'failed' ? 'danger' : 'warning');
+                $qrAvailable = $hasQr && (! $registration->payment_required || in_array($paymentStatus, ['paid', 'success', 'completed'], true));
             @endphp
             <tr>
                 <td>{{ $attendeeName ?: '—' }}<br><small class="text-muted">{{ $attendeeEmail ?: '—' }}</small></td>
                 <td>{{ $registration->registration_type ?: ($registration->user_id ? 'member' : 'visitor') }}</td>
-                <td>{{ $registration->payment_required ? 'razorpay' : '—' }}</td>
-                <td>{{ $registration->payment_status ?? '—' }}</td>
-                <td>{{ $registration->razorpay_payment_id ?? $registration->razorpay_order_id ?? '—' }}</td>
+                <td>{{ $gatewayLabel }}</td>
+                <td><span class="badge bg-{{ $paymentBadge }}">{{ $paymentLabel }}</span></td>
+                <td>{{ $registration->zoho_payment_id ?? $registration->razorpay_payment_id ?? $registration->razorpay_order_id ?? $registration->zoho_payment_link_id ?? '—' }}</td>
                 <td>{{ $registration->amount !== null ? trim(($registration->currency ?? 'INR').' '.$registration->amount) : '—' }}</td>
                 <td>
                     {{ $registration->zoho_invoice_number ?? $registration->zoho_invoice_id ?? '—' }}
@@ -53,7 +63,7 @@
                     @endif
                     @if($registration->zoho_invoice_sync_error)<small class="text-danger d-block">Sync failed</small>@endif
                 </td>
-                <td><span class="badge bg-{{ $hasQr ? 'success' : 'secondary' }}">{{ $hasQr ? 'Generated' : 'Pending' }}</span></td>
+                <td><span class="badge bg-{{ $qrAvailable ? 'success' : 'secondary' }}">{{ $qrAvailable ? 'Generated' : 'Pending' }}</span></td>
                 <td>{{ $registration->checkin_status }}</td>
             </tr>
         @empty

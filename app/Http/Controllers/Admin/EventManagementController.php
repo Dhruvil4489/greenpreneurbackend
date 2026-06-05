@@ -10,6 +10,7 @@ use App\Models\EventRegistrationRequest;
 use App\Models\EventQrScanLog;
 use App\Models\FileModel;
 use App\Services\Events\EventOccurrenceGeneratorService;
+use App\Services\Events\EventRegistrationQrService;
 use App\Services\Events\EventService;
 use App\Services\Events\EventZohoInvoiceSyncService;
 use App\Support\AdminAccess;
@@ -29,6 +30,7 @@ class EventManagementController extends Controller
         private readonly EventOccurrenceGeneratorService $occurrences,
         private readonly EventService $events,
         private readonly EventZohoInvoiceSyncService $zohoInvoiceSync,
+        private readonly EventRegistrationQrService $registrationQr,
     ) {}
 
     public function index(Request $request): View
@@ -209,6 +211,14 @@ class EventManagementController extends Controller
     {
         $event = Event::query()->with(['circle', 'occurrences' => fn ($q) => $q->orderBy('start_at'), 'registrations.user', 'registrations.occurrence'])->findOrFail($id);
         abort_unless($this->canAccessEvent((string) $event->id), 403);
+
+        $event->registrations->each(function (EventRegistration $registration): void {
+            if (in_array(strtolower((string) ($registration->payment_status ?? '')), ['paid', 'success', 'completed'], true)
+                || ! (bool) ($registration->payment_required ?? false)) {
+                $this->registrationQr->ensureQrGenerated($registration);
+            }
+        });
+        $event->load(['registrations.user', 'registrations.occurrence']);
 
         return view('admin.events.show', compact('event'));
     }

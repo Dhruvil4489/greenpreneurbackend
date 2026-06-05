@@ -21,6 +21,7 @@ class EventRegistrationService
         private readonly EventService $events,
         private readonly EventQrService $qr,
         private readonly EventPaymentService $payments,
+        private readonly EventRegistrationQrService $registrationQr,
     ) {}
 
     public function registerMember(Event $event, EventOccurrence $occurrence, User $user, string $source = 'app'): EventRegistration
@@ -50,9 +51,7 @@ class EventRegistrationService
             ->first();
 
         if ($existing) {
-            if (empty($existing->qr_code_path) && empty($existing->qr_code_url)) {
-                $this->qr->generateAndStore($existing);
-            }
+            $existing = $this->registrationQr->ensureQrGenerated($existing);
 
             return $existing->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']);
         }
@@ -92,6 +91,8 @@ class EventRegistrationService
                 return $this->payments->attachCheckout($existing->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']));
             }
 
+            $existing = $this->registrationQr->ensureQrGenerated($existing);
+
             return $existing->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']);
         }
 
@@ -129,6 +130,8 @@ class EventRegistrationService
             if ((bool) ($existing->payment_required ?? false) && in_array((string) ($existing->payment_status ?? ''), ['pending', 'failed', 'expired'], true)) {
                 return $this->payments->attachCheckout($existing->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']));
             }
+
+            $existing = $this->registrationQr->ensureQrGenerated($existing);
 
             return $existing->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']);
         }
@@ -187,9 +190,7 @@ class EventRegistrationService
                 ], fn ($value) => $value !== null));
                 $existing->forceFill($updates)->save();
 
-                if (empty($existing->qr_code_path) || empty($existing->qr_code_url)) {
-                    $this->qr->generateAndStore($existing);
-                }
+                $existing = $this->registrationQr->ensureQrGenerated($existing);
 
                 return $existing->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']);
             }
@@ -413,6 +414,8 @@ class EventRegistrationService
                     $existing->forceFill($updates)->save();
                 }
 
+                $existing = $this->registrationQr->ensureQrGenerated($existing);
+
                 return $existing->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']);
             }
 
@@ -437,7 +440,7 @@ class EventRegistrationService
             ])));
 
             if (! $paymentRequired) {
-                $this->qr->generateAndStore($registration);
+                $registration = $this->registrationQr->ensureQrGenerated($registration);
                 $registration = $registration->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']);
                 $this->notifySafely($registration);
             }

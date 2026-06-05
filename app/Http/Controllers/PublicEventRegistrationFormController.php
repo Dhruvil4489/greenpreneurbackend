@@ -9,6 +9,7 @@ use App\Models\Event;
 use App\Models\EventOccurrence;
 use App\Services\Events\EventPaymentService;
 use App\Services\Events\EventRegistrationService;
+use App\Services\Events\EventRegistrationQrService;
 use App\Services\Events\EventService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Log;
@@ -21,6 +22,7 @@ class PublicEventRegistrationFormController extends Controller
         private readonly EventService $events,
         private readonly EventRegistrationService $registrations,
         private readonly EventPaymentService $payments,
+        private readonly EventRegistrationQrService $registrationQr,
     ) {}
 
     public function show(string $event, string $occurrence): View
@@ -60,6 +62,7 @@ class PublicEventRegistrationFormController extends Controller
                 ->withErrors(['registration' => $exception->getMessage() ?: 'Unable to complete registration. Please try again.']);
         }
 
+        $registration = $this->registrationQr->ensureQrGenerated($registration);
         $payment = $this->payments->responsePayload($registration);
         $qr = ((bool) ($registration->payment_required ?? false) && ($registration->payment_status ?? null) !== 'paid')
             ? null

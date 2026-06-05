@@ -14,6 +14,7 @@ use App\Services\Circles\CircleJoinRequestPaymentSyncService;
 use App\Services\Membership\MembershipWelcomeEmailService;
 use App\Services\Circles\PaidCircleMembershipFinalizer;
 use App\Support\Zoho\ZohoBillingService;
+use App\Services\Zoho\ZohoPaymentWebhookService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -30,6 +31,7 @@ class ZohoBillingWebhookController extends Controller
         private readonly CircleJoinRequestPaymentSyncService $circleJoinRequestPaymentSyncService,
         private readonly MembershipWelcomeEmailService $membershipWelcomeEmailService,
         private readonly PaidCircleMembershipFinalizer $paidCircleMembershipFinalizer,
+        private readonly ZohoPaymentWebhookService $zohoPaymentWebhookService,
     ) {
     }
 
@@ -40,6 +42,24 @@ class ZohoBillingWebhookController extends Controller
         }
 
         $payload = $request->all();
+
+        try {
+            $eventPaymentResult = $this->zohoPaymentWebhookService->handle($request);
+            if (($eventPaymentResult['registration_found'] ?? false) === true) {
+                return response()->json([
+                    'success' => true,
+                    'message' => $eventPaymentResult['message'] ?? 'Event registration payment webhook processed',
+                    'data' => [
+                        'registration_id' => $eventPaymentResult['registration_id'] ?? null,
+                        'webhook_event_id' => $eventPaymentResult['webhook_event_id'] ?? null,
+                    ],
+                ]);
+            }
+        } catch (Throwable $throwable) {
+            Log::warning('zoho_billing_webhook_event_registration_payment_probe_failed', [
+                'error' => $throwable->getMessage(),
+            ]);
+        }
 
         $subscriptionId = data_get($payload, 'subscription.subscription_id')
             ?? data_get($payload, 'data.subscription.subscription_id')

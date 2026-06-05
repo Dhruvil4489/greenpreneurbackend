@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Schema;
 
 class EventRegistrationPaymentSyncService
 {
-    public function __construct(private readonly EventQrService $qr) {}
+    public function __construct(private readonly EventRegistrationQrService $registrationQr) {}
 
     public function syncFromZohoWebhook(array $payload): ?EventRegistration
     {
@@ -42,8 +42,8 @@ class EventRegistrationPaymentSyncService
 
             $registration->forceFill($this->filterRegistrationColumns($updates))->save();
 
-            if ($status === 'paid' && (empty($registration->qr_code_path) || empty($registration->qr_code_url))) {
-                $this->qr->generateAndStore($registration);
+            if ($status === 'paid') {
+                $registration = $this->registrationQr->ensureQrGenerated($registration);
             }
 
             Log::info('Event registration payment webhook synced.', [

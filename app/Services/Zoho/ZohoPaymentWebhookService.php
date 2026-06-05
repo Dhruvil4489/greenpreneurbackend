@@ -188,15 +188,25 @@ class ZohoPaymentWebhookService
         return [
             'event_type' => data_get($payload, 'event') ?? data_get($payload, 'event_type') ?? data_get($payload, 'type') ?? data_get($payload, 'event_name') ?? 'customer_payment',
             'external_event_id' => data_get($payload, 'event_id') ?? data_get($payload, 'id') ?? data_get($payload, 'webhook_id'),
-            'payment_id' => $payment['payment_id'] ?? data_get($payload, 'payment_id') ?? data_get($payload, 'data.payment_id') ?? ($dataPayment['payment_id'] ?? null) ?? data_get($payload, 'payment.id') ?? data_get($payload, 'customer_payments.0.payment_id') ?? data_get($payload, 'payment_link.customer_payments.0.payment_id'),
+            'payment_id' => $payment['payment_id'] ?? data_get($payload, 'payment_id') ?? data_get($payload, 'data.payment_id') ?? ($dataPayment['payment_id'] ?? null) ?? data_get($payload, 'payment.id') ?? data_get($payload, 'customerpayment.payment_id') ?? data_get($payload, 'data.customerpayment.payment_id') ?? data_get($payload, 'customer_payments.0.payment_id') ?? data_get($payload, 'payment_link.customer_payments.0.payment_id') ?? data_get($payload, 'transaction_id'),
             'payment_link_id' => $this->blankToNull($payment['payment_link_id'] ?? data_get($payload, 'payment_link.payment_link_id') ?? data_get($payload, 'payment_link_id') ?? data_get($payload, 'data.payment_link_id') ?? data_get($payload, 'data.payment_link.payment_link_id') ?? data_get($payload, 'payment_link.id')),
-            'reference_number' => $payment['reference_number'] ?? data_get($payload, 'reference_number') ?? data_get($payload, 'data.reference_number') ?? ($dataPayment['reference_number'] ?? null),
+            'payment_session_id' => $this->blankToNull(data_get($payload, 'payment_session_id') ?? data_get($payload, 'data.payment_session_id') ?? data_get($payload, 'payment.session_id') ?? data_get($payload, 'data.payment.session_id')),
+            'hosted_page_id' => $this->blankToNull(data_get($payload, 'hostedpage.hostedpage_id') ?? data_get($payload, 'data.hostedpage.hostedpage_id') ?? data_get($payload, 'hosted_page_id') ?? data_get($payload, 'hostedpage_id') ?? data_get($payload, 'payment.hostedpage_id') ?? data_get($payload, 'data.payment.hostedpage_id')),
+            'reference_number' => $payment['reference_number'] ?? data_get($payload, 'reference_number') ?? data_get($payload, 'data.reference_number') ?? data_get($payload, 'invoice.reference_number') ?? data_get($payload, 'data.invoice.reference_number') ?? ($dataPayment['reference_number'] ?? null),
             'online_transaction_id' => $payment['online_transaction_id'] ?? data_get($payload, 'online_transaction_id') ?? data_get($payload, 'data.online_transaction_id') ?? ($dataPayment['online_transaction_id'] ?? null),
             'description' => $description,
-            'customer_id' => $payment['customer_id'] ?? data_get($payload, 'customer_id') ?? data_get($payload, 'data.customer_id') ?? ($dataPayment['customer_id'] ?? null),
-            'amount' => $payment['amount'] ?? data_get($payload, 'amount') ?? data_get($payload, 'data.amount') ?? ($dataPayment['amount'] ?? null),
-            'payment_date' => $payment['date'] ?? $payment['payment_date'] ?? data_get($payload, 'payment_date') ?? data_get($payload, 'date') ?? data_get($payload, 'data.date') ?? ($dataPayment['date'] ?? null),
-            'status' => $payment['payment_status'] ?? $payment['status'] ?? data_get($payload, 'status') ?? data_get($payload, 'payment_link.status') ?? data_get($payload, 'data.status') ?? ($dataPayment['payment_status'] ?? null) ?? ($dataPayment['status'] ?? null),
+            'customer_id' => $payment['customer_id'] ?? data_get($payload, 'customer.customer_id') ?? data_get($payload, 'data.customer.customer_id') ?? data_get($payload, 'customer_id') ?? data_get($payload, 'data.customer_id') ?? ($dataPayment['customer_id'] ?? null),
+            'amount' => $payment['amount'] ?? data_get($payload, 'customerpayment.amount') ?? data_get($payload, 'data.customerpayment.amount') ?? data_get($payload, 'amount') ?? data_get($payload, 'data.amount') ?? ($dataPayment['amount'] ?? null),
+            'currency' => data_get($payload, 'currency') ?? data_get($payload, 'currency_code') ?? data_get($payload, 'customerpayment.currency_code') ?? data_get($payload, 'data.customerpayment.currency_code') ?? data_get($payload, 'payment.currency_code') ?? data_get($payload, 'data.payment.currency_code'),
+            'payment_date' => $payment['date'] ?? $payment['payment_date'] ?? data_get($payload, 'customerpayment.date') ?? data_get($payload, 'data.customerpayment.date') ?? data_get($payload, 'payment_date') ?? data_get($payload, 'date') ?? data_get($payload, 'data.date') ?? ($dataPayment['date'] ?? null),
+            'status' => $payment['payment_status'] ?? $payment['status'] ?? data_get($payload, 'customerpayment.status') ?? data_get($payload, 'customerpayment.payment_status') ?? data_get($payload, 'status') ?? data_get($payload, 'payment_link.status') ?? data_get($payload, 'invoice.status') ?? data_get($payload, 'data.status') ?? ($dataPayment['payment_status'] ?? null) ?? ($dataPayment['status'] ?? null),
+            'url' => data_get($payload, 'payment_link.url') ?? data_get($payload, 'hostedpage.url') ?? data_get($payload, 'data.hostedpage.url') ?? data_get($payload, 'url') ?? data_get($payload, 'data.url'),
+            'registration_id' => data_get($payload, 'metadata.registration_id') ?? data_get($payload, 'data.metadata.registration_id') ?? data_get($payload, 'custom_fields.registration_id') ?? data_get($payload, 'data.custom_fields.registration_id') ?? data_get($payload, 'registration_id'),
+            'invoice_id' => data_get($payload, 'invoice.invoice_id') ?? data_get($payload, 'data.invoice.invoice_id') ?? data_get($payload, 'invoice_id'),
+            'invoice_number' => data_get($payload, 'invoice.invoice_number') ?? data_get($payload, 'data.invoice.invoice_number') ?? data_get($payload, 'invoice_number'),
+            'invoice_url' => data_get($payload, 'invoice.invoice_url') ?? data_get($payload, 'data.invoice.invoice_url') ?? data_get($payload, 'invoice_url'),
+            'invoice_pdf_url' => data_get($payload, 'invoice.invoice_pdf_url') ?? data_get($payload, 'data.invoice.invoice_pdf_url') ?? data_get($payload, 'invoice_pdf_url'),
+            'invoice_status' => data_get($payload, 'invoice.status') ?? data_get($payload, 'data.invoice.status') ?? data_get($payload, 'invoice_status'),
             'parsed_registration_id' => $parsed['registration_id'] ?? null,
             'parsed_payment_link_id' => $parsed['payment_link_id'] ?? null,
             'parsed_original_payment_id' => $parsed['original_payment_id'] ?? null,
@@ -242,6 +252,31 @@ class ZohoPaymentWebhookService
             if ($registration) {
                 Log::info('zoho_payment_webhook_lookup_by_registration_id_found', $this->context($event, $info) + ['registration_id' => (string) $registration->id]);
                 return $registration;
+            }
+        }
+
+        if (! empty($info['registration_id']) && Str::isUuid((string) $info['registration_id'])) {
+            Log::info('zoho_payment_webhook_lookup_by_payload_registration_id_start', $this->context($event, $info));
+            $registration = EventRegistration::query()->where('id', $info['registration_id'])->first();
+            if ($registration) {
+                Log::info('zoho_payment_webhook_lookup_by_registration_id_found', $this->context($event, $info) + ['registration_id' => (string) $registration->id]);
+                return $registration;
+            }
+        }
+
+        foreach ([
+            'zoho_payment_session_id' => $info['payment_session_id'] ?? null,
+            'zoho_hosted_page_id' => $info['hosted_page_id'] ?? null,
+            'zoho_payment_id' => $info['online_transaction_id'] ?? null,
+            'zoho_invoice_id' => $info['invoice_id'] ?? null,
+        ] as $column => $value) {
+            if (! empty($value) && Schema::hasColumn('event_registrations', $column)) {
+                Log::info('zoho_payment_webhook_lookup_by_identifier_start', $this->context($event, $info) + ['column' => $column, 'value' => $value]);
+                $registration = EventRegistration::query()->where($column, $value)->latest('created_at')->first();
+                if ($registration) {
+                    Log::info('zoho_payment_webhook_registration_found_final', $this->context($event, $info) + ['registration_id' => (string) $registration->id, 'matched_column' => $column]);
+                    return $registration;
+                }
             }
         }
 
@@ -294,9 +329,15 @@ class ZohoPaymentWebhookService
             }
         }
 
-        $url = data_get($payload, 'payment_link.url') ?? data_get($payload, 'url') ?? data_get($payload, 'data.url');
+        $url = $info['url'] ?? data_get($payload, 'payment_link.url') ?? data_get($payload, 'url') ?? data_get($payload, 'data.url');
         if ($url) {
-            $registration = EventRegistration::query()->where('zoho_payment_link_url', $url)->orWhere('payment_url', $url)->latest('created_at')->first();
+            $registration = EventRegistration::query()
+                ->where('zoho_payment_link_url', $url)
+                ->orWhere('payment_url', $url)
+                ->orWhere('zoho_checkout_url', $url)
+                ->orWhere('zoho_hosted_page_url', $url)
+                ->latest('created_at')
+                ->first();
             if ($registration) return $registration;
         }
 
@@ -363,10 +404,20 @@ class ZohoPaymentWebhookService
     private function primePaidFields(EventRegistration $registration, array $payload, array $info): void
     {
         $registration->forceFill($this->filter([
-            'zoho_payment_id' => $registration->zoho_payment_id ?: ($info['parsed_original_payment_id'] ?? $info['payment_id']),
+            'status' => 'registered',
+            'zoho_payment_id' => $registration->zoho_payment_id ?: ($info['parsed_original_payment_id'] ?? $info['payment_id'] ?? $info['online_transaction_id'] ?? null),
             'zoho_payment_status' => 'paid',
             'payment_status' => 'paid',
             'payment_completed_at' => $registration->payment_completed_at ?: ($info['payment_date'] ? now()->parse((string) $info['payment_date']) : now()),
+            'zoho_invoice_id' => $info['invoice_id'] ?? $registration->zoho_invoice_id,
+            'zoho_invoice_number' => $info['invoice_number'] ?? $registration->zoho_invoice_number,
+            'zoho_invoice_url' => $info['invoice_url'] ?? $registration->zoho_invoice_url,
+            'zoho_invoice_pdf_url' => $info['invoice_pdf_url'] ?? $registration->zoho_invoice_pdf_url,
+            'zoho_invoice_status' => $info['invoice_status'] ?? $registration->zoho_invoice_status,
+            'amount' => $info['amount'] ?? $registration->amount,
+            'payment_amount' => $info['amount'] ?? $registration->payment_amount,
+            'currency' => $info['currency'] ?? $registration->currency,
+            'payment_currency' => $info['currency'] ?? $registration->payment_currency,
             'zoho_payment_webhook_payload' => $payload,
             'webhook_payload' => $payload,
             'metadata' => array_merge((array) ($registration->metadata ?? []), [
@@ -395,7 +446,7 @@ class ZohoPaymentWebhookService
         return $type === 'customer_payment'
             || str_contains($type, 'paid')
             || str_contains($type, 'success')
-            || in_array($status, ['paid', 'success', 'succeeded'], true)
+            || in_array($status, ['paid', 'success', 'succeeded', 'completed', 'payment_success', 'captured'], true)
             || ! empty($info['payment_id']);
     }
 
@@ -446,6 +497,9 @@ class ZohoPaymentWebhookService
             'amount' => $info['amount'] ?? null,
             'registration_id' => $info['registration_id'] ?? $event?->registration_id,
             'status' => $info['status'] ?? $event?->status,
+            'payment_session_id' => $info['payment_session_id'] ?? null,
+            'hosted_page_id' => $info['hosted_page_id'] ?? null,
+            'url' => $info['url'] ?? null,
         ];
     }
 

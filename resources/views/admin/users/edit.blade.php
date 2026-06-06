@@ -1,11 +1,11 @@
 @extends('admin.layouts.app')
 
-@section('title', 'Edit Peer')
+@section('title', ($isReadOnly ?? false) ? 'View Profile' : 'Edit Peer')
 
 @section('content')
 <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
-        <h5 class="mb-0">Edit Peer</h5>
+        <h5 class="mb-0">{{ ($isReadOnly ?? false) ? 'View Profile' : 'Edit Peer' }}</h5>
         <small class="text-muted">ID: {{ $user->id }}</small>
     </div>
     <a href="{{ route('admin.users.index') }}" class="btn btn-outline-secondary btn-sm">Back to Peers</a>
@@ -727,6 +727,8 @@
                     @if ($hasAssignedAdminRole)
                         <div class="form-text text-muted mt-2">
                             Remove the existing admin role to assign a new one.
+                        </div>
+                    @endif
                     <div id="industry-director-industry-group" class="row g-3 mt-3 d-none">
                         <div class="col-md-6">
                             <label class="form-label" for="industry-director-industry">Industry <span class="text-danger">*</span></label>
@@ -1152,4 +1154,28 @@ document.addEventListener('DOMContentLoaded', function () {
         handleCircleChange();
     });
 </script>
+
+@if($isReadOnly ?? false)
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('input, select, textarea, button').forEach(function(el) {
+            if (el.tagName === 'BUTTON' && (el.type === 'submit' || el.innerText.includes('Remove') || el.innerText.includes('Delete') || el.innerText.includes('Save') || el.innerText.includes('Update') || el.innerText.includes('Send') || el.classList.contains('btn-danger') || el.classList.contains('btn-success'))) {
+                el.style.display = 'none';
+            } else if (el.tagName !== 'A' && !el.classList.contains('btn-close') && !el.classList.contains('btn-outline-secondary')) {
+                el.disabled = true;
+            }
+        });
+        
+        document.querySelectorAll('form button[type="submit"], form input[type="submit"], .card-header form, .card-header button').forEach(function(el) {
+            el.style.display = 'none';
+        });
+
+        document.querySelectorAll('.btn-outline-primary, .btn-outline-danger').forEach(function(el) {
+            if (el.innerText.includes('Send') || el.innerText.includes('Remove') || el.innerText.includes('Delete')) {
+                el.style.display = 'none';
+            }
+        });
+    });
+</script>
+@endif
 @endpush

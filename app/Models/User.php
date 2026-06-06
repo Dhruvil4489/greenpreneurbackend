@@ -50,6 +50,7 @@ class User extends Authenticatable
         'experience_summary',
         'city_id',
         'city',
+        'status',
         'skills',
         'interests',
         'social_links',

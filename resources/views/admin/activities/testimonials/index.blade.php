@@ -23,40 +23,50 @@
             return $value ? \Illuminate\Support\Carbon::parse($value)->format('Y-m-d H:i') : '—';
         };
 
-        $mediaSummary = function ($media): array {
+        $mediaSummary = function ($media) use ($validMediaIds): array {
             if (! $media) {
                 return ['has' => false, 'count' => 0];
             }
 
             $decoded = is_string($media) ? json_decode($media, true) : $media;
+            $items = is_array($decoded) ? $decoded : [$decoded];
 
-            if (is_array($decoded)) {
-                $count = count($decoded);
-                return ['has' => $count > 0, 'count' => $count];
+            $validCount = 0;
+            foreach ($items as $item) {
+                $id = null;
+                if (is_array($item)) {
+                    $id = $item['id'] ?? $item['file_id'] ?? $item['fileId'] ?? null;
+                } elseif (is_string($item) && \Illuminate\Support\Str::isUuid($item)) {
+                    $id = $item;
+                }
+
+                if ($id && in_array($id, $validMediaIds ?? [], true)) {
+                    $validCount++;
+                }
             }
 
-            return ['has' => true, 'count' => 1];
+            return ['has' => $validCount > 0, 'count' => $validCount];
         };
 
-        $firstMediaId = function ($media): ?string {
+        $firstMediaId = function ($media) use ($validMediaIds): ?string {
             if (! $media) {
                 return null;
             }
 
             $decoded = is_string($media) ? json_decode($media, true) : $media;
             $items = is_array($decoded) ? array_values($decoded) : [$decoded];
-            $first = $items[0] ?? null;
 
-            if (is_string($first)) {
-                return $first;
-            }
+            foreach ($items as $item) {
+                $id = null;
+                if (is_array($item)) {
+                    $id = $item['id'] ?? $item['file_id'] ?? $item['fileId'] ?? null;
+                } elseif (is_string($item) && \Illuminate\Support\Str::isUuid($item)) {
+                    $id = $item;
+                }
 
-            if (is_array($first)) {
-                return $first['file_id'] ?? $first['fileId'] ?? $first['id'] ?? null;
-            }
-
-            if (is_object($first)) {
-                return $first->file_id ?? $first->fileId ?? $first->id ?? null;
+                if ($id && in_array($id, $validMediaIds ?? [], true)) {
+                    return $id;
+                }
             }
 
             return null;
@@ -182,7 +192,7 @@
                                     <span class="badge bg-success">Yes ({{ $mediaInfo['count'] }})</span>
                                     <a href="{{ url('/api/v1/files/' . $mediaId) }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary ms-2">View</a>
                                 @else
-                                    <span class="text-muted">No</span>
+                                    <span class="text-muted">No Media</span>
                                 @endif
                             </td>
                             <td>{{ $formatDateTime($testimonial->created_at ?? null) }}</td>

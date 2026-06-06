@@ -26,28 +26,65 @@ class FileController extends BaseApiController
     /**
      * Serve a file by its UUID.
      */
-    public function show(string $id)
+    public function show(Request $request, string $id)
     {
-        $file = File::findOrFail($id);
+        try {
+            $file = File::find($id);
 
-        $disk = config('filesystems.default', 'public');
+            if (!$file) {
+                Log::warning("File API lookup failed: Database record not found for UUID: {$id}", [
+                    'uuid' => $id,
+                    'ip' => $request->ip(),
+                    'user_id' => auth()->id() ?? auth('admin')->id(),
+                ]);
+                abort(404, 'File not found');
+            }
 
-        if (! $file->s3_key || ! Storage::disk($disk)->exists($file->s3_key)) {
-            abort(404, 'File not found');
+            $disk = config('filesystems.default', 'public');
+
+            if (!$file->s3_key || !Storage::disk($disk)->exists($file->s3_key)) {
+                if (!$file->is_orphaned) {
+                    $file->is_orphaned = true;
+                    $file->save();
+                }
+
+                Log::warning("File API lookup failed: Physical file missing in storage for UUID: {$id}", [
+                    'uuid' => $id,
+                    's3_key' => $file->s3_key,
+                    'disk' => $disk,
+                    'ip' => $request->ip(),
+                    'user_id' => auth()->id() ?? auth('admin')->id(),
+                ]);
+                abort(404, 'File not found');
+            }
+
+            $mime = $file->mime_type
+                ?: Storage::disk($disk)->mimeType($file->s3_key)
+                ?: 'application/octet-stream';
+
+            if ($request->isMethod('HEAD')) {
+                return response('', 200, [
+                    'Content-Type'  => $mime,
+                    'Content-Length' => $file->size_bytes ?: Storage::disk($disk)->size($file->s3_key),
+                    'Cache-Control' => 'public, max-age=31536000',
+                ]);
+            }
+
+            return Storage::disk($disk)->response(
+                $file->s3_key,
+                null,
+                [
+                    'Content-Type'  => $mime,
+                    'Cache-Control' => 'public, max-age=31536000',
+                ]
+            );
+        } catch (\Throwable $e) {
+            Log::error("File API error for UUID {$id}: " . $e->getMessage(), [
+                'uuid' => $id,
+                'exception' => $e,
+            ]);
+            throw $e;
         }
-
-        $mime = $file->mime_type
-            ?: Storage::disk($disk)->mimeType($file->s3_key)
-            ?: 'application/octet-stream';
-
-        return Storage::disk($disk)->response(
-            $file->s3_key,
-            null,
-            [
-                'Content-Type'  => $mime,
-                'Cache-Control' => 'public, max-age=31536000',
-            ]
-        );
     }
 
     public function upload(Request $request)

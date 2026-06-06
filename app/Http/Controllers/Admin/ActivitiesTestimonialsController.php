@@ -47,6 +47,12 @@ class ActivitiesTestimonialsController extends Controller
             ->paginate(20)
             ->withQueryString();
 
+        $allMediaIds = [];
+        foreach ($items as $item) {
+            $allMediaIds = array_merge($allMediaIds, \App\Models\File::extractIdsFromMedia($item->media));
+        }
+        $validMediaIds = \App\Models\File::getValidMediaIds(array_unique($allMediaIds));
+
         $topMembers = $this->topMembers($request);
 
         return view('admin.activities.testimonials.index', [
@@ -56,6 +62,7 @@ class ActivitiesTestimonialsController extends Controller
             'topMembers' => $topMembers,
             'total' => $total,
             'circles' => $this->circleOptions(),
+            'validMediaIds' => $validMediaIds,
         ]);
     }
 

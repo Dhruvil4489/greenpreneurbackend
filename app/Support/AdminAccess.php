@@ -215,12 +215,14 @@ class AdminAccess
         }
 
         $allowedRoles = array_keys(self::CIRCLE_ROLE_PRIORITY);
+        $isPgSql = DB::connection()->getDriverName() === 'pgsql';
+        $roleCol = $isPgSql ? DB::raw('circle_members.role::text') : 'circle_members.role';
 
         return CircleMember::query()
             ->where('user_id', $user->id)
             ->where('status', 'approved')
             ->whereNull('deleted_at')
-            ->whereIn(DB::raw('circle_members.role::text'), $allowedRoles)
+            ->whereIn($roleCol, $allowedRoles)
             ->exists();
     }
 
@@ -298,15 +300,20 @@ class AdminAccess
                 ->map(fn ($priority, $role) => "when '{$role}' then {$priority}")
                 ->implode(' ');
 
+            $isPgSql = DB::connection()->getDriverName() === 'pgsql';
+            $roleCol = $isPgSql ? DB::raw('circle_members.role::text') : 'circle_members.role';
+            $orderRoleCol = $isPgSql ? 'circle_members.role::text' : 'circle_members.role';
+            $valueRoleCol = $isPgSql ? DB::raw('circle_members.role::text') : 'circle_members.role';
+
             return CircleMember::query()
                 ->where('user_id', $user->id)
                 ->where('status', 'approved')
                 ->whereNull('deleted_at')
                 ->whereIn('circle_id', $allowedCircleIds)
-                ->whereIn(DB::raw('circle_members.role::text'), $roles)
-                ->orderByRaw("case circle_members.role::text {$orderCases} else 999 end")
+                ->whereIn($roleCol, $roles)
+                ->orderByRaw("case {$orderRoleCol} {$orderCases} else 999 end")
                 ->limit(1)
-                ->value(DB::raw('circle_members.role::text'));
+                ->value($valueRoleCol);
         });
     }
 

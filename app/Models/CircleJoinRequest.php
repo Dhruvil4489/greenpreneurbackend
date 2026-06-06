@@ -172,7 +172,12 @@ class CircleJoinRequest extends Model
         }
 
         if (AdminAccess::isDed($adminUser)) {
-            AdminCircleScope::applyToActivityQuery($query, $adminUser, 'circle_join_requests.user_id', null);
+            $query->whereExists(function ($subQuery) use ($adminUser) {
+                $subQuery->selectRaw(1)
+                    ->from('circles as cjr_circles')
+                    ->whereColumn('cjr_circles.id', 'circle_join_requests.circle_id');
+                AdminCircleScope::applyToCirclesQuery($subQuery, $adminUser, 'cjr_circles');
+            });
 
             return $query;
         }

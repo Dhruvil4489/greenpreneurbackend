@@ -304,10 +304,17 @@ class ActivitiesController extends Controller
             ->paginate(20)
             ->withQueryString();
 
+        $allMediaIds = [];
+        foreach ($items as $item) {
+            $allMediaIds = array_merge($allMediaIds, \App\Models\File::extractIdsFromMedia($item->media));
+        }
+        $validMediaIds = \App\Models\File::getValidMediaIds(array_unique($allMediaIds));
+
         return view('admin.activities.list-testimonials', [
             'member' => $member,
             'items' => $items,
             'filters' => $filters,
+            'validMediaIds' => $validMediaIds,
         ]);
     }
 
@@ -400,10 +407,17 @@ class ActivitiesController extends Controller
             ->paginate(20)
             ->withQueryString();
 
+        $allMediaIds = [];
+        foreach ($items as $item) {
+            $allMediaIds = array_merge($allMediaIds, \App\Models\File::extractIdsFromMedia($item->media));
+        }
+        $validMediaIds = \App\Models\File::getValidMediaIds(array_unique($allMediaIds));
+
         return view('admin.activities.list-requirements', [
             'member' => $member,
             'items' => $items,
             'filters' => $filters,
+            'validMediaIds' => $validMediaIds,
         ]);
     }
 

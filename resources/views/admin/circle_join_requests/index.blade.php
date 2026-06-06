@@ -68,7 +68,7 @@
                         <span class="badge {{ $paymentStatus === 'Paid' ? 'text-bg-success' : ($paymentStatus === 'Unpaid' ? 'text-bg-warning' : 'text-bg-secondary') }}">{{ $paymentStatus }}</span>
                     </td>
                     <td>
-                        <a href="{{ route('admin.circle-joining-requests.show', $row->id) }}" class="btn btn-sm btn-outline-primary">Details</a>
+                        <a href="{{ route('admin.circle-joining-requests.show', $row->id) }}" class="btn btn-sm btn-outline-primary">Review Details</a>
 
                         @if($row->can_approve_cd)
                             <form method="POST" action="{{ route('admin.circle-joining-requests.approve-cd', $row->id) }}" class="d-inline">@csrf<button class="btn btn-sm btn-success">Approve</button></form>
@@ -81,7 +81,8 @@
                         @endif
 
                         @if($row->can_approve_ded)
-                            <form method="POST" action="{{ route('admin.circle-joining-requests.approve-ded', $row->id) }}" class="d-inline" data-ded-approval-form="true">@csrf<button class="btn btn-sm btn-warning">DED Approval</button></form>
+                            <form method="POST" action="{{ route('admin.circle-joining-requests.approve-ded', $row->id) }}" class="d-inline">@csrf<button class="btn btn-sm btn-success">Approve</button></form>
+                            <form method="POST" action="{{ route('admin.circle-joining-requests.reject-ded', $row->id) }}" class="d-inline" onsubmit="const r = prompt('Enter rejection remarks (required):'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=remarks]').value = r.trim(); return true;">@csrf<input type="hidden" name="remarks"><button class="btn btn-sm btn-outline-danger">Reject</button></form>
                         @endif
                     </td>
                 </tr>

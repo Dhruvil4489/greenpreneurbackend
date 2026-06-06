@@ -154,6 +154,25 @@ Route::prefix('v1')->group(function () {
             Route::get('/dashboard', [DedDashboardController::class, 'show']);
             Route::get('/dashboard/circles', [DedDashboardController::class, 'circles']);
 
+            // DED Drilldown APIs
+            Route::get('/drilldowns/active-members', [DedDashboardController::class, 'activeMembers']);
+            Route::get('/drilldowns/leadership-spots', [DedDashboardController::class, 'leadershipSpots']);
+            Route::get('/drilldowns/membership-conversion', [DedDashboardController::class, 'membershipConversion']);
+            Route::get('/drilldowns/referral-activity', [DedDashboardController::class, 'referralActivity']);
+
+            // DED Industry APIs
+            Route::get('/industries', [DedDashboardController::class, 'industries']);
+            Route::get('/industries/{industry_id}', [DedDashboardController::class, 'industryDetail']);
+
+            // DED Leadership APIs
+            Route::get('/leadership/industry-directors', [DedDashboardController::class, 'industryDirectors']);
+            Route::get('/leadership/founders', [DedDashboardController::class, 'founders']);
+            Route::get('/leadership/directors', [DedDashboardController::class, 'directors']);
+            Route::get('/leadership/chairs', [DedDashboardController::class, 'chairs']);
+            Route::get('/leadership/vice-chairs', [DedDashboardController::class, 'viceChairs']);
+            Route::get('/leadership/secretaries', [DedDashboardController::class, 'secretaries']);
+            Route::get('/leadership/members', [DedDashboardController::class, 'members']);
+
             Route::get('/circles', [DedPeersController::class, 'circles']);
             Route::get('/peers', [DedPeersController::class, 'index']);
             Route::get('/peers/{id}', [DedPeersController::class, 'show'])->whereUuid('id');

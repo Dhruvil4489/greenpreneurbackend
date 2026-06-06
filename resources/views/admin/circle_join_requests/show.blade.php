@@ -31,9 +31,6 @@
                         <form method="POST" action="{{ route('admin.circle-joining-requests.approve-id', $record->id) }}" class="d-inline">@csrf<button class="btn btn-sm btn-success">Approve</button></form>
                         <form method="POST" action="{{ route('admin.circle-joining-requests.reject-id', $record->id) }}" class="d-inline" onsubmit="const r = prompt('Enter rejection reason (required):'); if (!r || !r.trim()) { return false; } this.querySelector('input[name=reason]').value = r.trim(); return true;">@csrf<input type="hidden" name="reason"><button class="btn btn-sm btn-outline-danger">Reject</button></form>
                     @endif
-                    @if($canApproveDed)
-                        <form method="POST" action="{{ route('admin.circle-joining-requests.approve-ded', $record->id) }}" class="d-inline" data-ded-approval-form="true">@csrf<button class="btn btn-sm btn-warning">DED Approval</button></form>
-                    @endif
                 </div>
             </div>
 
@@ -75,6 +72,21 @@
             @endif
 
             <p>Payment Status: @php($paymentStatus = $record->paymentStatusLabel()) <span class="badge {{ $paymentStatus === 'Paid' ? 'text-bg-success' : ($paymentStatus === 'Unpaid' ? 'text-bg-warning' : 'text-bg-secondary') }}">{{ $paymentStatus }}</span></p>
+
+            @if($canApproveDed)
+                <div class="card mt-3 bg-light border-warning"><div class="card-body">
+                    <h6 class="text-warning">DED Decision Center</h6>
+                    <form id="ded-decision-form" method="POST" action="">
+                        @csrf
+                        <div class="mb-3">
+                            <label for="ded_remarks" class="form-label">Remarks / Notes (Required for Rejection)</label>
+                            <textarea name="remarks" id="ded_remarks" class="form-control" rows="3" placeholder="Enter remarks..."></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-success" onclick="this.form.action='{{ route('admin.circle-joining-requests.approve-ded', $record->id) }}'; return true;">Approve</button>
+                        <button type="submit" class="btn btn-danger ms-2" onclick="this.form.action='{{ route('admin.circle-joining-requests.reject-ded', $record->id) }}'; const val = document.getElementById('ded_remarks').value.trim(); if(!val) { alert('Remarks are required for rejection.'); return false; } return true;">Reject</button>
+                    </form>
+                </div></div>
+            @endif
 
             <hr>
             <h6 class="mt-4">Approval Timeline</h6>

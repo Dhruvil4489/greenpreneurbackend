@@ -7,6 +7,8 @@ use App\Models\Circle;
 use App\Models\User;
 use App\Support\AdminAccess;
 use App\Support\AdminCircleScope;
+use App\Services\Api\Ded\DashboardAggregationService;
+use App\Services\Api\Ded\DistrictAnalyticsService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Auth;
@@ -86,14 +88,12 @@ class DashboardController extends Controller
         if (! $districtName) {
             return view('admin.ded-dashboard', [
                 'districtName' => null,
-                'stats' => [],
-                'pendingItems' => [],
-                'recentPeers' => collect(),
+                'dashboardData' => [],
+                'districtCircles' => collect(),
+                'selectedCircleId' => '',
+                'selectedCircle' => null,
             ]);
         }
-
-        $districtPeersQuery = User::query();
-        AdminCircleScope::applyToUsersQuery($districtPeersQuery, $admin);
 
         $districtCirclesQuery = Circle::query();
         $this->applyDedCircleScope($districtCirclesQuery, $admin);
@@ -111,39 +111,314 @@ class DashboardController extends Controller
         if ($selectedCircleId !== '') {
             $selectedCircle = $districtCircles->firstWhere('id', $selectedCircleId);
             abort_unless($selectedCircle !== null, 403);
-
-            $this->applyCircleFilterToUsersQuery($districtPeersQuery, $selectedCircleId);
         }
 
-        $stats = [
-            'total_users' => (int) (clone $districtPeersQuery)->count(),
-            'active_circles' => $selectedCircleId !== '' ? 1 : (int) $districtCircles->count(),
-            'testimonials' => $this->scopedTableCount($admin, 'testimonials', 'from_user_id', true, null, $selectedCircleId ?: null),
-            'requirements' => $this->scopedTableCount($admin, 'requirements', 'user_id', false, null, $selectedCircleId ?: null),
-            'referrals' => $this->scopedTableCount($admin, 'referrals', 'from_user_id', true, null, $selectedCircleId ?: null),
-            'business_deals' => $this->scopedTableCount($admin, 'business_deals', 'from_user_id', true, null, $selectedCircleId ?: null),
-            'p2p_meetings' => $this->scopedTableCount($admin, 'p2p_meetings', 'initiator_user_id', true, null, $selectedCircleId ?: null),
-            'coins_earned' => $this->scopedCoinsEarned($admin, $selectedCircleId ?: null),
-            'pending_requests' => $this->scopedPendingRequestsCount($admin, $selectedCircleId ?: null),
-        ];
-
-        $pendingItems = [
-            ['title' => 'Pending Requests', 'count' => $stats['pending_requests']],
-            ['title' => 'District Referrals', 'count' => $stats['referrals']],
-            ['title' => 'District Requirements', 'count' => $stats['requirements']],
-            ['title' => 'District Testimonials', 'count' => $stats['testimonials']],
-        ];
-
-        $recentPeersQuery = (clone $districtPeersQuery)->with('city')->latest('created_at')->limit(8);
+        $aggregation = app(DashboardAggregationService::class);
+        $dashboardData = $aggregation->getDashboardData($admin, $selectedCircleId ?: null);
 
         return view('admin.ded-dashboard', [
             'districtName' => $districtName,
-            'stats' => $stats,
-            'pendingItems' => $pendingItems,
-            'recentPeers' => $recentPeersQuery->get(),
+            'dashboardData' => $dashboardData,
             'districtCircles' => $districtCircles,
             'selectedCircleId' => $selectedCircleId,
             'selectedCircle' => $selectedCircle,
+        ]);
+    }
+
+    public function dedLeadershipDetail(Request $request, string $role)
+    {
+        $admin = Auth::guard('admin')->user();
+        abort_unless(AdminAccess::isDed($admin), 403);
+
+        $dedLocation = AdminAccess::assignedDedLocation($admin);
+        $districtName = $dedLocation['district_name'] ?? null;
+        abort_unless($districtName !== null, 403);
+
+        $roleTitles = [
+            'industry_director' => 'Industry Directors',
+            'founder' => 'Circle Founders',
+            'director' => 'Circle Directors',
+            'chair' => 'Chairs',
+            'vice_chair' => 'Vice Chairs',
+            'secretary' => 'Secretaries',
+            'member' => 'Members',
+        ];
+        abort_unless(array_key_exists($role, $roleTitles), 404);
+
+        $districtCirclesQuery = Circle::query();
+        $this->applyDedCircleScope($districtCirclesQuery, $admin);
+        $districtCircles = (clone $districtCirclesQuery)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $industries = DB::table('circle_categories')
+            ->whereNull('parent_id')
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $filters = [
+            'circle_id' => $request->query('circle_id'),
+            'industry_id' => $request->query('industry_id'),
+            'status' => $request->query('status'),
+            'date_from' => $request->query('date_from'),
+            'date_to' => $request->query('date_to'),
+        ];
+
+        $analytics = app(DistrictAnalyticsService::class);
+        $data = $analytics->getLeadershipRoleDetails($admin, $role, $filters);
+
+        return view('admin.ded-leadership-detail', [
+            'role' => $role,
+            'roleTitle' => $roleTitles[$role],
+            'records' => $data['records'],
+            'summary' => $data['summary'],
+            'districtCircles' => $districtCircles,
+            'industries' => $industries,
+            'filters' => $filters,
+            'districtName' => $districtName,
+        ]);
+    }
+
+    public function dedActiveMembersDetail(Request $request)
+    {
+        $admin = Auth::guard('admin')->user();
+        abort_unless(AdminAccess::isDed($admin), 403);
+
+        $dedLocation = AdminAccess::assignedDedLocation($admin);
+        $districtName = $dedLocation['district_name'] ?? null;
+        abort_unless($districtName !== null, 403);
+
+        $districtCirclesQuery = Circle::query();
+        $this->applyDedCircleScope($districtCirclesQuery, $admin);
+        $districtCircles = (clone $districtCirclesQuery)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $industries = DB::table('circle_categories')
+            ->whereNull('parent_id')
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $filters = [
+            'circle_id' => $request->query('circle_id'),
+            'industry_id' => $request->query('industry_id'),
+            'status' => $request->query('status'),
+            'date_from' => $request->query('date_from'),
+            'date_to' => $request->query('date_to'),
+        ];
+
+        $analytics = app(DistrictAnalyticsService::class);
+        $data = $analytics->getActiveMembersDetail($admin, $filters);
+
+        return view('admin.ded-health-active-members', [
+            'records' => $data['records'],
+            'summary' => $data['summary'],
+            'districtCircles' => $districtCircles,
+            'industries' => $industries,
+            'filters' => $filters,
+            'districtName' => $districtName,
+        ]);
+    }
+
+    public function dedLeadershipSpotsDetail(Request $request)
+    {
+        $admin = Auth::guard('admin')->user();
+        abort_unless(AdminAccess::isDed($admin), 403);
+
+        $dedLocation = AdminAccess::assignedDedLocation($admin);
+        $districtName = $dedLocation['district_name'] ?? null;
+        abort_unless($districtName !== null, 403);
+
+        $districtCirclesQuery = Circle::query();
+        $this->applyDedCircleScope($districtCirclesQuery, $admin);
+        $districtCircles = (clone $districtCirclesQuery)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $industries = DB::table('circle_categories')
+            ->whereNull('parent_id')
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $filters = [
+            'circle_id' => $request->query('circle_id'),
+            'industry_id' => $request->query('industry_id'),
+            'date_from' => $request->query('date_from'),
+            'date_to' => $request->query('date_to'),
+        ];
+
+        $analytics = app(DistrictAnalyticsService::class);
+        $data = $analytics->getLeadershipSpotsFilledDetail($admin, $filters);
+
+        return view('admin.ded-health-leadership-spots', [
+            'records' => $data['records'],
+            'summary' => $data['summary'],
+            'districtCircles' => $districtCircles,
+            'industries' => $industries,
+            'filters' => $filters,
+            'districtName' => $districtName,
+        ]);
+    }
+
+    public function dedMembershipConversionDetail(Request $request)
+    {
+        $admin = Auth::guard('admin')->user();
+        abort_unless(AdminAccess::isDed($admin), 403);
+
+        $dedLocation = AdminAccess::assignedDedLocation($admin);
+        $districtName = $dedLocation['district_name'] ?? null;
+        abort_unless($districtName !== null, 403);
+
+        $districtCirclesQuery = Circle::query();
+        $this->applyDedCircleScope($districtCirclesQuery, $admin);
+        $districtCircles = (clone $districtCirclesQuery)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $industries = DB::table('circle_categories')
+            ->whereNull('parent_id')
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $filters = [
+            'circle_id' => $request->query('circle_id'),
+            'industry_id' => $request->query('industry_id'),
+            'date_from' => $request->query('date_from'),
+            'date_to' => $request->query('date_to'),
+        ];
+
+        $analytics = app(DistrictAnalyticsService::class);
+        $data = $analytics->getMembershipConversionDetail($admin, $filters);
+
+        return view('admin.ded-health-membership-conversion', [
+            'records' => $data['records'],
+            'summary' => $data['summary'],
+            'districtCircles' => $districtCircles,
+            'industries' => $industries,
+            'filters' => $filters,
+            'districtName' => $districtName,
+        ]);
+    }
+
+    public function dedReferralActivityDetail(Request $request)
+    {
+        $admin = Auth::guard('admin')->user();
+        abort_unless(AdminAccess::isDed($admin), 403);
+
+        $dedLocation = AdminAccess::assignedDedLocation($admin);
+        $districtName = $dedLocation['district_name'] ?? null;
+        abort_unless($districtName !== null, 403);
+
+        $districtCirclesQuery = Circle::query();
+        $this->applyDedCircleScope($districtCirclesQuery, $admin);
+        $districtCircles = (clone $districtCirclesQuery)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $industries = DB::table('circle_categories')
+            ->whereNull('parent_id')
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $filters = [
+            'circle_id' => $request->query('circle_id'),
+            'industry_id' => $request->query('industry_id'),
+            'date_from' => $request->query('date_from'),
+            'date_to' => $request->query('date_to'),
+        ];
+
+        $analytics = app(DistrictAnalyticsService::class);
+        $data = $analytics->getReferralActivityDetail($admin, $filters);
+
+        return view('admin.ded-health-referral-activity', [
+            'records' => $data['records'],
+            'summary' => $data['summary'],
+            'districtCircles' => $districtCircles,
+            'industries' => $industries,
+            'filters' => $filters,
+            'districtName' => $districtName,
+        ]);
+    }
+
+    public function dedIndustriesOverview(Request $request): View
+    {
+        $admin = Auth::guard('admin')->user();
+        abort_unless(AdminAccess::isDed($admin), 403);
+
+        $dedLocation = AdminAccess::assignedDedLocation($admin);
+        $districtName = $dedLocation['district_name'] ?? null;
+        abort_unless($districtName !== null, 403);
+
+        $districtCirclesQuery = Circle::query();
+        $this->applyDedCircleScope($districtCirclesQuery, $admin);
+        $districtCircles = (clone $districtCirclesQuery)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $industries = DB::table('circle_categories')
+            ->whereNull('parent_id')
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $filters = [
+            'circle_id' => $request->query('circle_id'),
+            'industry_id' => $request->query('industry_id'),
+            'status' => $request->query('status'),
+            'date_from' => $request->query('date_from'),
+            'date_to' => $request->query('date_to'),
+        ];
+
+        $analytics = app(DistrictAnalyticsService::class);
+        $data = $analytics->getIndustriesOverview($admin, $filters);
+
+        return view('admin.ded-industries-overview', [
+            'records' => $data['records'],
+            'summary' => $data['summary'],
+            'districtCircles' => $districtCircles,
+            'industries' => $industries,
+            'filters' => $filters,
+            'districtName' => $districtName,
+        ]);
+    }
+
+    public function dedIndustryDetail(Request $request, string $id): View
+    {
+        $admin = Auth::guard('admin')->user();
+        abort_unless(AdminAccess::isDed($admin), 403);
+
+        $dedLocation = AdminAccess::assignedDedLocation($admin);
+        $districtName = $dedLocation['district_name'] ?? null;
+        abort_unless($districtName !== null, 403);
+
+        $districtCirclesQuery = Circle::query();
+        $this->applyDedCircleScope($districtCirclesQuery, $admin);
+        $districtCircles = (clone $districtCirclesQuery)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $filters = [
+            'circle_id' => $request->query('circle_id'),
+            'date_from' => $request->query('date_from'),
+            'date_to' => $request->query('date_to'),
+        ];
+
+        $analytics = app(DistrictAnalyticsService::class);
+        $data = $analytics->getIndustryDetail($admin, $id, $filters);
+
+        return view('admin.ded-industry-detail', [
+            'industryId' => $id,
+            'summary' => $data['summary'],
+            'members' => $data['members'],
+            'circles' => $data['circles'],
+            'districtCircles' => $districtCircles,
+            'filters' => $filters,
+            'districtName' => $districtName,
         ]);
     }
 

@@ -84,6 +84,7 @@ class CircleController extends Controller
         $admin = Auth::guard('admin')->user();
         if (AdminAccess::isDed($admin)) {
             AdminCircleScope::applyToCirclesQuery($query, $admin);
+        }
         $industryCircleIds = null;
         if ($this->industryScope->isIndustryDirector($admin)) {
             $industryCircleIds = $this->industryScope->circleIdsForAdmin($admin);

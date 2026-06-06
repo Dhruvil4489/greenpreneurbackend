@@ -31,10 +31,12 @@ class FileModel extends Model
         'width',
         'height',
         'duration',
+        'is_orphaned',
     ];
 
     protected $casts = [
         'created_at' => 'datetime',
+        'is_orphaned' => 'boolean',
     ];
 
     public function uploader(): BelongsTo

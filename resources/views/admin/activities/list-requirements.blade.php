@@ -4,7 +4,7 @@
 
 @section('content')
     @php
-        $resolveFileUrl = function ($value) {
+        $resolveFileUrl = function ($value) use ($validMediaIds) {
             if (! $value) {
                 return null;
             }
@@ -14,7 +14,9 @@
             }
 
             if (is_string($value) && \Illuminate\Support\Str::isUuid($value)) {
-                return url('/api/v1/files/' . $value);
+                if (in_array($value, $validMediaIds ?? [], true)) {
+                    return url('/api/v1/files/' . $value);
+                }
             }
 
             return null;

@@ -230,12 +230,8 @@ class UsersController extends Controller
             ->with('success', 'Member created successfully.');
     }
 
-    public function edit(Request $request, string $userId): View
+    private function getEditViewData(Request $request, string $userId): array
     {
-        if (! AdminAccess::canEditUsers(Auth::guard('admin')->user())) {
-            abort(403);
-        }
-
         $user = User::query()
             ->with(['mainBusinessCategory:id,name', 'businessCategory:id,name'])
             ->findOrFail($userId);
@@ -347,7 +343,7 @@ class UsersController extends Controller
 
         $hasCoinsRemarkColumn = Schema::hasColumn('users', 'coins_remark');
 
-        return view('admin.users.edit', [
+        return [
             'user' => $user,
             'cities' => $cities,
             'roles' => $roles,
@@ -379,7 +375,39 @@ class UsersController extends Controller
             'membershipPlanOptions' => $this->membershipPlanOptions($user->zoho_plan_code),
             'circleCategoryOptionsByCircle' => $circleCategoryOptionsByCircle,
             'hasCoinsRemarkColumn' => $hasCoinsRemarkColumn,
-        ]);
+        ];
+    }
+
+    public function edit(Request $request, string $userId): View
+    {
+        if (! AdminAccess::canEditUsers(Auth::guard('admin')->user())) {
+            abort(403);
+        }
+
+        $data = $this->getEditViewData($request, $userId);
+        $data['isReadOnly'] = false;
+
+        return view('admin.users.edit', $data);
+    }
+
+    public function show(Request $request, string $userId): View
+    {
+        $admin = Auth::guard('admin')->user();
+        abort_unless($admin !== null, 403);
+
+        $isGlobal = AdminAccess::isGlobalAdmin($admin);
+        $isDed = AdminAccess::isDed($admin);
+
+        abort_unless($isGlobal || $isDed, 403);
+
+        if ($isDed) {
+            abort_unless(AdminCircleScope::userInScope($admin, $userId), 403);
+        }
+
+        $data = $this->getEditViewData($request, $userId);
+        $data['isReadOnly'] = true;
+
+        return view('admin.users.edit', $data);
     }
 
     public function update(Request $request, string $userId)
@@ -1835,6 +1863,60 @@ class UsersController extends Controller
                     ->where('status', $joinedStatus)
                     ->whereNull('deleted_at');
             });
+        }
+
+        $dedAdmin = Auth::guard('admin')->user();
+        $isDed = AdminAccess::isDed($dedAdmin);
+        $dedCircleIds = $isDed ? AdminCircleScope::getDedCircleIds($dedAdmin) : null;
+
+        $role = $request->query('role');
+        if ($role && $role !== 'all') {
+            if ($role === 'industry_director') {
+                $query->whereExists(function ($q) use ($isDed, $dedCircleIds) {
+                    $q->selectRaw(1)
+                      ->from('circles')
+                      ->whereColumn('circles.industry_director_user_id', 'users.id');
+                    if ($isDed && is_array($dedCircleIds)) {
+                        $q->whereIn('circles.id', $dedCircleIds);
+                    }
+                });
+            } elseif ($role === 'founder') {
+                $query->whereExists(function ($q) use ($isDed, $dedCircleIds) {
+                    $q->selectRaw(1)
+                      ->from('circles')
+                      ->whereColumn('circles.founder_user_id', 'users.id');
+                    if ($isDed && is_array($dedCircleIds)) {
+                        $q->whereIn('circles.id', $dedCircleIds);
+                    }
+                });
+            } elseif ($role === 'director') {
+                $query->whereExists(function ($q) use ($isDed, $dedCircleIds) {
+                    $q->selectRaw(1)
+                      ->from('circles')
+                      ->whereColumn('circles.director_user_id', 'users.id');
+                    if ($isDed && is_array($dedCircleIds)) {
+                        $q->whereIn('circles.id', $dedCircleIds);
+                    }
+                });
+            } elseif (in_array($role, ['chair', 'vice_chair', 'secretary', 'member', 'leadership_team'])) {
+                $query->whereExists(function ($q) use ($role, $joinedStatus, $isDed, $dedCircleIds) {
+                    $q->selectRaw(1)
+                      ->from('circle_members')
+                      ->whereColumn('circle_members.user_id', 'users.id')
+                      ->where('circle_members.status', $joinedStatus)
+                      ->whereNull('circle_members.deleted_at');
+                    
+                    if ($role === 'leadership_team') {
+                        $q->whereIn('circle_members.role', ['chair', 'vice_chair', 'secretary', 'committee_leader']);
+                    } else {
+                        $q->where('circle_members.role', $role);
+                    }
+
+                    if ($isDed && is_array($dedCircleIds)) {
+                        $q->whereIn('circle_members.circle_id', $dedCircleIds);
+                    }
+                });
+            }
         }
 
         if ($membership && $membership !== 'all') {

@@ -12,11 +12,6 @@
         : (($isCircleScoped || $isDed)
             ? ($isDed ? ['icon' => 'bi-speedometer2', 'label' => 'Dashboard', 'route' => 'admin.ded.dashboard'] : null)
             : ['icon' => 'bi-speedometer2', 'label' => 'Dashboard', 'route' => 'admin.dashboard']);
-        : ($isDed
-            ? ['icon' => 'bi-speedometer2', 'label' => 'Dashboard', 'route' => 'admin.ded.dashboard']
-            : ($isCircleScoped
-                ? null
-                : ['icon' => 'bi-speedometer2', 'label' => 'Dashboard', 'route' => 'admin.dashboard']));
 
     $navItems = $isIndustryDirector
         ? [
@@ -63,25 +58,6 @@
                 ['icon' => 'bi-tags', 'label' => 'Circle Categories', 'route' => 'admin.categories.index'],
                 ['icon' => 'bi-megaphone', 'label' => 'Ads', 'route' => 'admin.ads.index', 'active_routes' => ['admin.ads.*']],
                 ['icon' => 'bi-lightning-charge', 'label' => 'Impact Option', 'route' => 'admin.impacts.index', 'active_routes' => ['admin.impacts.index', 'admin.impacts.store', 'admin.impacts.show', 'admin.impacts.posts']],
-            ] : []),
-            ['icon' => 'bi-wallet2', 'label' => 'Wallet & Finance', 'route' => 'admin.execution.finance'],
-            ['icon' => 'bi-chat-dots', 'label' => 'Posts & Moderation', 'route' => '#'],
-            ['icon' => 'bi-calendar-check', 'label' => 'Events Management', 'route' => 'admin.events.index', 'active_routes' => ['admin.events.*', 'admin.event-joining-requests.*']],
-            ['icon' => 'bi-calendar-event', 'label' => 'Events', 'route' => 'admin.execution.events'],
-            ['icon' => 'bi-people-fill', 'label' => 'Referrals & Visitors', 'route' => '#'],
-            ['icon' => 'bi-life-preserver', 'label' => 'Support & Feedback', 'route' => '#'],
-            ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.execution.communications']],
-            ['icon' => 'bi-calendar2-week', 'label' => 'Meetings & Warnings', 'route' => 'admin.execution.meetings'],
-            ['icon' => 'bi-shield-lock', 'label' => 'Audit & Compliance', 'route' => 'admin.execution.reports'],
-            ['icon' => 'bi-gear', 'label' => 'System Settings', 'route' => '#'],
-        ]);
-                ['icon' => 'bi-calendar-event', 'label' => 'Events', 'route' => 'admin.execution.events'],
-                ['icon' => 'bi-people-fill', 'label' => 'Referrals & Visitors', 'route' => '#'],
-                ['icon' => 'bi-life-preserver', 'label' => 'Support & Feedback', 'route' => '#'],
-                ['icon' => 'bi-bell', 'label' => 'Notifications & Email', 'route' => 'admin.campaigns.index', 'active_routes' => ['admin.campaigns.*', 'admin.execution.communications']],
-                ['icon' => 'bi-calendar2-week', 'label' => 'Meetings & Warnings', 'route' => 'admin.execution.meetings'],
-                ['icon' => 'bi-shield-lock', 'label' => 'Audit & Compliance', 'route' => 'admin.execution.reports'],
-                ['icon' => 'bi-gear', 'label' => 'System Settings', 'route' => '#'],
             ]);
 
     $fullActivityMenu = [

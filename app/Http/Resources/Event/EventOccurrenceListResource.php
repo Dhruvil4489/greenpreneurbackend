@@ -71,10 +71,11 @@ class EventOccurrenceListResource extends JsonResource
                 'registration_id' => $registration?->id,
                 'status' => $registration?->status,
                 'checkin_status' => $registration?->checkin_status,
-                'payment_gateway' => ($registration?->payment_required ?? false) ? 'razorpay' : null,
+                'payment_gateway' => ($registration?->payment_required ?? false) ? ($registration->payment_gateway ?: (string) config('services.event_payment_gateway', 'zoho_billing_payment_link')) : null,
+                'payment_gateway' => ($registration?->payment_required ?? false) ? (in_array(strtolower((string) ($registration->payment_gateway ?: config('services.event_payment_gateway', 'zoho_billing_payment_link'))), ['none', 'not_required', 'null', ''], true) ? 'zoho_billing_payment_link' : ($registration->payment_gateway ?: (string) config('services.event_payment_gateway', 'zoho_billing_payment_link'))) : null,
                 'payment_status' => $registration?->payment_status,
                 'razorpay_order_id' => $registration?->razorpay_order_id,
-                'checkout_url' => null,
+                'checkout_url' => $registration?->payment_url ?? $registration?->zoho_checkout_url ?? $registration?->zoho_payment_link_url ?? $registration?->zoho_hosted_page_url ?? null,
                 'qr_code_url' => $registration ? ((($registration->payment_required ?? false) && ($registration->payment_status ?? null) !== 'paid') ? null : ($registration->qr_code_path ? $qr->url($registration->qr_code_path) : $registration->qr_code_url)) : null,
             ],
         ];

@@ -8,6 +8,7 @@ use App\Models\EventRegistration;
 use App\Models\User;
 use App\Services\Zoho\ZohoBillingPaymentLinkService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 
 class EventPaymentService
@@ -58,12 +59,39 @@ class EventPaymentService
             return $registration;
         }
 
-        $gateway = (string) config('services.event_payment_gateway', env('EVENT_PAYMENT_GATEWAY', 'zoho_billing_payment_link'));
-        if ($gateway === 'zoho_billing_payment_link') {
-            $registration = app(\App\Services\Zoho\ZohoBillingPaymentLinkService::class)
-                ->createPaymentLink($registration->fresh(['event', 'occurrence', 'user', 'businessCategoryMain', 'businessCategorySub']));
-        } else {
-            $registration = $this->razorpay->createOrder($registration->fresh(['event', 'occurrence', 'user', 'businessCategoryMain', 'businessCategorySub']));
+        $gateway = $registration->payment_gateway ?: (string) config('services.event_payment_gateway', env('EVENT_PAYMENT_GATEWAY', 'zoho_billing_payment_link'));
+        $gateway = $this->gatewayFor($registration);
+        $currentPaymentUrl = $registration->payment_url
+            ?? $registration->zoho_checkout_url
+            ?? $registration->zoho_payment_link_url
+            ?? $registration->zoho_hosted_page_url
+            ?? null;
+
+        if (! in_array(strtolower((string) ($registration->payment_status ?? '')), ['paid', 'success', 'completed'], true)) {
+            if ($gateway === 'zoho_billing_payment_link') {
+                if (empty($currentPaymentUrl)) {
+                    $registration = app(\App\Services\Zoho\ZohoBillingPaymentLinkService::class)
+                        ->createPaymentLink($registration->fresh(['event', 'occurrence', 'user', 'businessCategoryMain', 'businessCategorySub']));
+                    Log::warning('event_registration_payment_url_missing_creating_zoho_link', [
+                        'registration_id' => (string) $registration->id,
+                        'event_id' => (string) $registration->event_id,
+                        'occurrence_id' => (string) $registration->occurrence_id,
+                        'payment_gateway' => $registration->payment_gateway,
+                        'payment_status' => $registration->payment_status,
+                    ]);
+                    $registration = app(\App\Services\Zoho\ZohoBillingPaymentLinkService::class)
+                        ->createPaymentLink($registration->fresh(['event', 'occurrence', 'user', 'businessCategoryMain', 'businessCategorySub']));
+                } else {
+                    $registration->forceFill($this->filterRegistrationColumns([
+                        'payment_gateway' => 'zoho_billing_payment_link',
+                        'payment_url' => $currentPaymentUrl,
+                        'checkout_url' => $currentPaymentUrl,
+                    ]))->save();
+                    $registration = $registration->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']);
+                }
+            } else {
+                $registration = $this->razorpay->createOrder($registration->fresh(['event', 'occurrence', 'user', 'businessCategoryMain', 'businessCategorySub']));
+            }
         }
 
         return DB::transaction(function () use ($registration, $gateway): EventRegistration {
@@ -88,9 +116,20 @@ class EventPaymentService
 
     public function responsePayload(EventRegistration $registration): array
     {
-        $requiresPayment = (bool) ($registration->payment_required ?? false);
-        $gateway = $requiresPayment ? ($registration->payment_gateway ?: (string) config('services.event_payment_gateway', env('EVENT_PAYMENT_GATEWAY', 'zoho_billing_payment_link'))) : null;
-        $paymentUrl = $registration->payment_url ?? $registration->zoho_payment_link_url ?? $registration->zoho_checkout_url ?? $registration->zoho_hosted_page_url ?? null;
+        $paymentStatus = strtolower((string) ($registration->payment_status ?? ''));
+        $paid = in_array($paymentStatus, ['paid', 'success', 'completed'], true);
+        $paymentRequired = (bool) ($registration->payment_required ?? false);
+        $requiresPayment = $paymentRequired && ! $paid;
+        $gateway = $paymentRequired ? ($registration->payment_gateway ?: (string) config('services.event_payment_gateway', env('EVENT_PAYMENT_GATEWAY', 'zoho_billing_payment_link'))) : null;
+        $gateway = $paymentRequired ? $this->gatewayFor($registration) : null;
+        $paymentUrl = $registration->payment_url
+            ?? $registration->checkout_url
+            ?? $registration->zoho_checkout_url
+            ?? $registration->zoho_payment_link_url
+            ?? $registration->zoho_hosted_page_url
+            ?? null;
+        $formUrl = $registration->visitor_registration_form_url ?: url('/events/'.$registration->event_id.'/occurrences/'.$registration->occurrence_id.'/visitor-register?registration_id='.$registration->id);
+        $formUrl = $registration->visitor_registration_form_url ?: app(EventRegistrationService::class)->visitorRegistrationFormUrl($registration);
         $zohoLinkFailed = $requiresPayment && $gateway === 'zoho_billing_payment_link' && empty($paymentUrl);
 
         $payload = [
@@ -98,7 +137,7 @@ class EventPaymentService
             'registration_type' => $registration->registration_type ?? null,
             'status' => ! $zohoLinkFailed,
             'success' => ! $zohoLinkFailed,
-            'payment_required' => $requiresPayment,
+            'payment_required' => $paymentRequired,
             'requires_payment' => $requiresPayment,
             'payment_status' => $registration->payment_status ?? ($requiresPayment ? 'pending' : 'not_required'),
             'amount' => $registration->amount !== null ? (string) $registration->amount : null,
@@ -106,7 +145,12 @@ class EventPaymentService
             'payment_gateway' => $gateway,
             'payment_url' => $paymentUrl,
             'checkout_url' => $paymentUrl,
-            'qr_code_url' => $requiresPayment && ($registration->payment_status ?? null) !== 'paid'
+            'zoho_checkout_url' => $registration->zoho_checkout_url ?? null,
+            'zoho_payment_link_url' => $registration->zoho_payment_link_url ?? null,
+            'zoho_hosted_page_url' => $registration->zoho_hosted_page_url ?? null,
+            'visitor_registration_form_url' => $formUrl,
+            'form_url' => $formUrl,
+            'qr_code_url' => $requiresPayment
                 ? null
                 : ($registration->qr_code_path ? app(EventQrService::class)->url($registration->qr_code_path) : $registration->qr_code_url),
             'zoho_invoice_id' => $registration->zoho_invoice_id ?? null,
@@ -115,9 +159,11 @@ class EventPaymentService
             'zoho_invoice_pdf_url' => $registration->zoho_invoice_pdf_url ?? null,
             'message' => $zohoLinkFailed
                 ? 'Unable to create Zoho payment link. Please try again.'
+                : ($paid
+                ? 'Already registered. Payment completed.'
                 : ($requiresPayment
-                ? 'Payment required. Please complete Zoho Billing payment.'
-                : 'Event registration successful.'),
+                ? 'Payment required. Please complete payment.'
+                : 'Event registration successful.')),
             'error' => $zohoLinkFailed ? ($registration->zoho_invoice_sync_error ?? 'Zoho API request failed.') : null,
         ] + $this->visitorRegistrationDetails($registration);
 
@@ -164,6 +210,17 @@ class EventPaymentService
             'designation' => $user->designation,
             'profile_photo_url' => $user->profile_photo_url ?? null,
         ];
+    }
+
+    private function gatewayFor(EventRegistration $registration): string
+    {
+        $gateway = strtolower((string) ($registration->payment_gateway ?: config('services.event_payment_gateway', env('EVENT_PAYMENT_GATEWAY', 'zoho_billing_payment_link'))));
+
+        if ($gateway === '' || in_array($gateway, ['none', 'not_required', 'null'], true)) {
+            return 'zoho_billing_payment_link';
+        }
+
+        return $gateway;
     }
 
     private function filterRegistrationColumns(array $data): array

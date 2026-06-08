@@ -29,7 +29,7 @@ class EventPaymentSyncService
             $registration->refresh();
         }
 
-        if (($registration->payment_gateway ?? '') === 'zoho_billing_payment_link') {
+        if ($this->usesZohoPaymentLink($registration)) {
             Log::info('event_payment_status_api_zoho_sync_start', [
                 'registration_id' => (string) $registration->id,
                 'payment_status' => $registration->payment_status,
@@ -57,6 +57,14 @@ class EventPaymentSyncService
             'zoho_invoice_status' => $registration->zoho_invoice_status,
             'qr_code_url' => $this->registrationQr->qrCodeUrl($registration),
         ];
+    }
+
+    private function usesZohoPaymentLink(EventRegistration $registration): bool
+    {
+        return ($registration->payment_gateway ?? '') === 'zoho_billing_payment_link'
+            || ! empty($registration->zoho_payment_link_url)
+            || ! empty($registration->zoho_checkout_url)
+            || ! empty($registration->zoho_hosted_page_url);
     }
 
     private function filter(array $data): array

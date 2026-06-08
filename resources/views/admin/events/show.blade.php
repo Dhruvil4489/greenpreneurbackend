@@ -39,7 +39,8 @@
                 $gatewayLabel = match ($gateway) {
                     'zoho_billing_payment_link' => 'Zoho Billing',
                     'razorpay' => 'Razorpay',
-                    default => $registration->payment_required ? ($gateway ?: '—') : '—',
+                    'none', 'not_required' => 'Not required',
+                    default => $registration->payment_required ? ($gateway ?: 'Not required') : 'Not required',
                 };
                 $paymentStatus = strtolower((string) ($registration->payment_status ?? ''));
                 $paymentLabel = in_array($paymentStatus, ['paid', 'success', 'completed'], true) ? 'Paid' : ($paymentStatus === 'failed' ? 'Failed' : ($paymentStatus === 'pending' ? 'Pending' : ($registration->payment_status ?? '—')));

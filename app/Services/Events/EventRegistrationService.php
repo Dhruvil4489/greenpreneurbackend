@@ -11,6 +11,7 @@ use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -337,6 +338,44 @@ class EventRegistrationService
         return trim((string) ($user->display_name ?: trim(($user->first_name ?? '').' '.($user->last_name ?? '')) ?: $user->email ?: $user->phone ?: 'Event Attendee'));
     }
 
+    public function visitorRegistrationFormUrl(EventRegistration $registration): string
+    {
+        return url('/events/'.$registration->event_id.'/occurrences/'.$registration->occurrence_id.'/visitor-register?registration_id='.$registration->id);
+        $parameters = [
+            'event' => $registration->event_id,
+            'occurrence' => $registration->occurrence_id,
+            'registration_id' => $registration->id,
+        ];
+
+        $url = Route::has('events.visitor-register')
+            ? route('events.visitor-register', $parameters)
+            : url('/events/'.$registration->event_id.'/occurrences/'.$registration->occurrence_id.'/visitor-register?registration_id='.$registration->id);
+
+        Log::info('public_event_registration_form_url_generated', [
+            'registration_id' => (string) $registration->id,
+            'event_id' => (string) $registration->event_id,
+            'occurrence_id' => (string) $registration->occurrence_id,
+            'url' => $url,
+        ]);
+
+        return $url;
+    }
+
+    public function ensureVisitorRegistrationFormUrl(EventRegistration $registration): EventRegistration
+    {
+        if (! Schema::hasColumn('event_registrations', 'visitor_registration_form_url')) {
+            return $registration;
+        }
+
+        $url = $this->visitorRegistrationFormUrl($registration);
+        if ($registration->visitor_registration_form_url !== $url) {
+            $registration->forceFill(['visitor_registration_form_url' => $url])->save();
+            $registration->refresh();
+        }
+
+        return $registration;
+    }
+
     public function qrDetails(EventRegistration $registration): array
     {
         $hasGeneratedQr = ! empty($registration->qr_code_path) || ! empty($registration->qr_code_url) || ! empty($registration->qr_code_svg);
@@ -414,6 +453,12 @@ class EventRegistrationService
                     $existing->forceFill($updates)->save();
                 }
 
+                $existing = $this->ensureVisitorRegistrationFormUrl($existing);
+                if ((bool) ($existing->payment_required ?? false)
+                    && in_array(strtolower((string) ($existing->payment_status ?? '')), ['pending', 'failed', 'expired', 'processing'], true)) {
+                    return $this->payments->attachCheckout($existing->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']));
+                }
+
                 $existing = $this->registrationQr->ensureQrGenerated($existing);
 
                 return $existing->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']);
@@ -439,6 +484,8 @@ class EventRegistrationService
                 'registration_type' => $registrationType,
             ])));
 
+            $registration = $this->ensureVisitorRegistrationFormUrl($registration);
+
             if (! $paymentRequired) {
                 $registration = $this->registrationQr->ensureQrGenerated($registration);
                 $registration = $registration->fresh(['event.circle', 'occurrence', 'user', 'invitedByUser', 'businessCategoryMain', 'businessCategorySub']);
@@ -460,6 +507,7 @@ class EventRegistrationService
                 ]);
 
                 $registration->forceFill($this->filterRegistrationColumns([
+                    'payment_gateway' => 'zoho_billing_payment_link',
                     'payment_status' => 'pending',
                     'status' => 'pending_payment',
                     'zoho_invoice_sync_error' => $exception->getMessage(),

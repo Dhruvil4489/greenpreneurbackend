@@ -73,6 +73,7 @@ class EventRegistration extends Model
         'payment_required',
         'payment_gateway',
         'payment_url',
+        'checkout_url',
         'payment_amount',
         'payment_currency',
         'zoho_payment_link_url',
@@ -88,6 +89,7 @@ class EventRegistration extends Model
         'razorpay_signature',
         'razorpay_payment_id',
         'razorpay_order_id',
+        'visitor_registration_form_url',
     ];
 
     protected $casts = [

@@ -53,7 +53,7 @@ Route::get('/', function () {
 Route::get('/events/{event}/occurrences/{occurrence}/visitor-register', [PublicEventRegistrationFormController::class, 'show'])
     ->whereUuid('event')
     ->whereUuid('occurrence')
-    ->name('events.visitor-register.show');
+    ->name('events.visitor-register');
 Route::post('/events/{event}/occurrences/{occurrence}/visitor-register', [PublicEventRegistrationFormController::class, 'submit'])
     ->whereUuid('event')
     ->whereUuid('occurrence')

@@ -32,9 +32,18 @@
 </head>
 <body>
 @php
-    $paymentUrl = $payment['payment_url'] ?? $payment['checkout_url'] ?? $payment['zoho_checkout_url'] ?? null;
+    $paymentUrl = $payment['payment_url']
+        ?? $payment['checkout_url']
+        ?? $payment['zoho_checkout_url']
+        ?? $payment['zoho_payment_link_url']
+        ?? $payment['zoho_hosted_page_url']
+        ?? $registration?->payment_url
+        ?? $registration?->zoho_checkout_url
+        ?? $registration?->zoho_payment_link_url
+        ?? $registration?->zoho_hosted_page_url
+        ?? null;
     $paymentStatus = strtolower((string) ($payment['payment_status'] ?? $registration?->payment_status ?? ''));
-    $paymentRequired = (bool) ($payment['payment_required'] ?? $registration?->payment_required ?? false) && ! in_array($paymentStatus, ['paid', 'success', 'completed'], true);
+    $paymentRequired = (bool) ($payment['requires_payment'] ?? false);
 @endphp
 <div class="page">
     <section class="card">
@@ -63,6 +72,7 @@
                 <div class="alert {{ $paymentUrl ? 'alert-success' : 'alert-error' }}">
                     <strong>{{ $paymentUrl ? 'Registration saved. Payment is required.' : 'Registration saved, but payment link is not available yet.' }}</strong>
                     <div>{{ $payment['message'] ?? 'Please complete payment to confirm your registration.' }}</div>
+                    <div class="muted">Registration ID: {{ $registration->id }}</div>
                     @if(!empty($payment['error']))
                         <div>{{ $payment['error'] }}</div>
                     @endif
@@ -72,7 +82,7 @@
                 </div>
             @else
                 <div class="alert alert-success">
-                    <strong>{{ in_array($paymentStatus, ['paid', 'success', 'completed'], true) ? 'Payment completed successfully.' : 'Visitor registered successfully.' }}</strong>
+                    <strong>{{ in_array($paymentStatus, ['paid', 'success', 'completed'], true) ? 'Payment completed successfully. Your registration is confirmed.' : 'Visitor registered successfully.' }}</strong>
                     <div>Your registration ID is {{ $registration->id }}.</div>
                 </div>
                 @if($qr)
@@ -80,6 +90,7 @@
                         <h2>Registration / QR details</h2>
                         @if(!empty($qr['qr_code_url']))
                             <img src="{{ $qr['qr_code_url'] }}" alt="Registration QR code">
+                            <p><a href="{{ $qr['qr_code_url'] }}" target="_blank" rel="noopener">Open QR code</a></p>
                         @endif
                         @if(!empty($qr['qr_token']))
                             <p><strong>QR token:</strong> {{ $qr['qr_token'] }}</p>

@@ -57,9 +57,24 @@ class ZohoBillingPaymentLinkService
     {
         $registration->loadMissing(['event', 'user']);
 
-        if (($registration->payment_status ?? null) === 'pending' && ! empty($registration->zoho_payment_link_url)) {
-            return $registration;
+        $existingUrl = $this->paymentUrl($registration);
+        if (($registration->payment_status ?? null) === 'pending' && ! empty($existingUrl)) {
+            $registration->forceFill($this->filter([
+                'payment_gateway' => 'zoho_billing_payment_link',
+                'payment_url' => $existingUrl,
+                'checkout_url' => $existingUrl,
+                'zoho_checkout_url' => $registration->zoho_checkout_url ?: $existingUrl,
+                'zoho_payment_link_url' => $registration->zoho_payment_link_url ?: $existingUrl,
+            ]))->save();
+
+            return $registration->fresh(['event', 'occurrence', 'user']);
         }
+
+        $registration->forceFill($this->filter([
+            'payment_gateway' => 'zoho_billing_payment_link',
+            'payment_status' => $registration->payment_status ?: 'pending',
+            'status' => $registration->status ?: 'pending_payment',
+        ]))->save();
 
         $event = $registration->event;
         $amountValue = (float) ($registration->payment_amount ?? $registration->amount ?? 0);
@@ -98,7 +113,7 @@ class ZohoBillingPaymentLinkService
         try {
             $response = $this->client->request('POST', '/paymentlinks', $payload);
             $link = data_get($response, 'payment_link') ?? data_get($response, 'payment_links') ?? $response;
-            $url = data_get($link, 'url');
+            $url = $this->urlFromZohoResponse(is_array($link) ? $link : [], $response);
 
             if (empty($url)) {
                 Log::error('zoho_billing_payment_link_error', [
@@ -111,11 +126,14 @@ class ZohoBillingPaymentLinkService
             }
 
             $registration->forceFill($this->filter([
-                'zoho_payment_link_id' => data_get($link, 'payment_link_id') ?? null,
+                'zoho_payment_link_id' => data_get($link, 'payment_link_id') ?? data_get($link, 'paymentlink_id') ?? data_get($link, 'payment_link.payment_link_id') ?? null,
+                'zoho_hosted_page_id' => data_get($link, 'hostedpage_id') ?? data_get($link, 'hostedpage.hostedpage_id') ?? data_get($response, 'hostedpage.hostedpage_id') ?? null,
                 'zoho_payment_link_url' => $url,
+                'zoho_checkout_url' => $url,
+                'zoho_hosted_page_url' => data_get($link, 'hostedpage.url') ?? data_get($response, 'hostedpage.url') ?? null,
                 'payment_url' => $url,
                 'checkout_url' => $url,
-                'zoho_payment_status' => data_get($link, 'status', 'Generated'),
+                'zoho_payment_status' => data_get($link, 'status', data_get($response, 'status', 'Generated')),
                 'payment_gateway' => 'zoho_billing_payment_link',
                 'payment_status' => 'pending',
                 'status' => 'pending_payment',
@@ -126,9 +144,25 @@ class ZohoBillingPaymentLinkService
                 'zoho_payment_link_id' => $registration->zoho_payment_link_id,
             ]);
         } catch (ValidationException $e) {
+            Log::error('zoho_billing_payment_link_validation_failed', [
+                'registration_id' => (string) $registration->id,
+                'error' => $e->getMessage(),
+                'errors' => $e->errors(),
+            ]);
+            $registration->forceFill($this->filter([
+                'payment_gateway' => 'zoho_billing_payment_link',
+                'zoho_invoice_sync_error' => $e->getMessage(),
+                'payment_status' => 'pending',
+                'status' => 'pending_payment',
+            ]))->save();
             throw $e;
         } catch (\Throwable $e) {
+            Log::error('zoho_billing_payment_link_create_failed', [
+                'registration_id' => (string) $registration->id,
+                'error' => $e->getMessage(),
+            ]);
             $registration->forceFill($this->filter([
+                'payment_gateway' => 'zoho_billing_payment_link',
                 'zoho_invoice_sync_error' => $e->getMessage(),
                 'payment_status' => 'pending',
                 'status' => 'pending_payment',
@@ -138,11 +172,42 @@ class ZohoBillingPaymentLinkService
         return $registration->fresh(['event', 'occurrence', 'user']);
     }
 
+    private function paymentUrl(EventRegistration $registration): ?string
+    {
+        return $registration->payment_url
+            ?? $registration->checkout_url
+            ?? $registration->zoho_checkout_url
+            ?? $registration->zoho_payment_link_url
+            ?? $registration->zoho_hosted_page_url
+            ?? null;
+    }
+
+    private function urlFromZohoResponse(array $link, array $response): ?string
+    {
+        foreach ([
+            'url',
+            'payment_url',
+            'payment_link_url',
+            'short_url',
+            'checkout_url',
+            'hostedpage.url',
+            'hosted_page.url',
+            'payment_link.url',
+        ] as $key) {
+            $value = data_get($link, $key) ?? data_get($response, $key);
+            if (! empty($value)) {
+                return (string) $value;
+            }
+        }
+
+        return null;
+    }
+
     public function syncPaymentStatus(EventRegistration $registration): EventRegistration
     {
         $registration->loadMissing(['event', 'occurrence', 'user']);
 
-        if (($registration->payment_gateway ?? null) !== 'zoho_billing_payment_link') {
+        if (! $this->usesZohoPaymentLink($registration)) {
             return $registration;
         }
 
@@ -184,6 +249,14 @@ class ZohoBillingPaymentLinkService
         Log::info('zoho_billing_payment_link_sync_no_paid_status', ['registration_id' => (string) $registration->id]);
 
         return $registration->fresh(['event', 'occurrence', 'user']);
+    }
+
+    private function usesZohoPaymentLink(EventRegistration $registration): bool
+    {
+        return ($registration->payment_gateway ?? null) === 'zoho_billing_payment_link'
+            || ! empty($registration->zoho_payment_link_url)
+            || ! empty($registration->zoho_checkout_url)
+            || ! empty($registration->zoho_hosted_page_url);
     }
 
     private function syncEndpoints(EventRegistration $registration): array

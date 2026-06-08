@@ -9,6 +9,7 @@ use App\Models\EventOccurrence;
 use App\Models\EventQrScanLog;
 use App\Models\EventRegistration;
 use Carbon\Carbon;
+use DateTimeInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -26,6 +27,8 @@ class EventApiController extends BaseApiController
 
         $circleId = $validated['circle_id'] ?? null;
         $status = $validated['status'] ?? 'all';
+        $timezone = config('app.timezone') ?: 'Asia/Kolkata';
+        $now = now($timezone);
         $circle = null;
 
         if ($circleId) {
@@ -50,11 +53,11 @@ class EventApiController extends BaseApiController
         $this->applyActiveEventScope($events);
 
         $eventItems = $events->get()
-            ->flatMap(fn (Event $event) => $this->expandEventItems($event))
+            ->flatMap(fn (Event $event) => $this->expandEventItems($event, $timezone))
             ->sortBy('_start_at')
             ->values();
 
-        $grouped = $this->groupEventItems($eventItems);
+        $grouped = $this->groupEventItems($eventItems, $now);
 
         if ($status !== 'all') {
             $grouped = [
@@ -68,6 +71,8 @@ class EventApiController extends BaseApiController
 
         return $this->success([
             'circle' => $circle ? $this->circlePayload($circle) : null,
+            'server_now' => $now->toIso8601String(),
+            'app_timezone' => $timezone,
             'total' => $total,
             'today_events' => $grouped['today_events'],
             'live_events' => $grouped['live_events'],
@@ -86,25 +91,25 @@ class EventApiController extends BaseApiController
         }
     }
 
-    private function expandEventItems(Event $event): Collection
+    private function expandEventItems(Event $event, string $timezone): Collection
     {
         if ($event->occurrences->isNotEmpty()) {
             return $event->occurrences->map(fn (EventOccurrence $occurrence) => $this->eventItemPayload(
                 $event,
                 $occurrence,
                 $occurrence->start_at,
-                $occurrence->end_at
+                $occurrence->end_at,
+                $timezone
             ));
         }
 
         return collect([
-            $this->eventItemPayload($event, null, $event->start_at, $event->end_at),
+            $this->eventItemPayload($event, null, $event->start_at, $event->end_at, $timezone),
         ]);
     }
 
-    private function groupEventItems(Collection $eventItems): array
+    private function groupEventItems(Collection $eventItems, Carbon $now): array
     {
-        $now = Carbon::now();
         $today = $now->toDateString();
 
         $liveEvents = [];
@@ -123,16 +128,19 @@ class EventApiController extends BaseApiController
             $payload = $item['payload'];
 
             if ($isLive) {
+                $payload['group_status'] = 'live';
                 $liveEvents[] = $payload;
                 continue;
             }
 
             if ($startAt->toDateString() === $today) {
+                $payload['group_status'] = 'today';
                 $todayEvents[] = $payload;
                 continue;
             }
 
-            if ($startAt->greaterThan($now) && $startAt->toDateString() > $today) {
+            if ($startAt->greaterThan($now)) {
+                $payload['group_status'] = 'upcoming';
                 $upcomingEvents[] = $payload;
             }
         }
@@ -144,14 +152,18 @@ class EventApiController extends BaseApiController
         ];
     }
 
-    private function eventItemPayload(Event $event, ?EventOccurrence $occurrence, ?Carbon $startAt, ?Carbon $endAt): array
+    private function eventItemPayload(Event $event, ?EventOccurrence $occurrence, mixed $startAt, mixed $endAt, string $timezone): array
     {
         $occurrenceId = $occurrence?->id;
         $circlePayload = $event->circle ? $this->circlePayload($event->circle) : null;
+        $groupingStartAt = $this->dateTimeForGrouping($startAt, $timezone);
+        $groupingEndAt = $this->dateTimeForGrouping($endAt, $timezone);
+        $responseStartAt = $this->dateTimeForResponse($startAt);
+        $responseEndAt = $this->dateTimeForResponse($endAt);
 
         return [
-            '_start_at' => $startAt,
-            '_end_at' => $endAt,
+            '_start_at' => $groupingStartAt,
+            '_end_at' => $groupingEndAt,
             'payload' => [
                 'event_id' => $event->id,
                 'occurrence_id' => $occurrenceId,
@@ -160,9 +172,9 @@ class EventApiController extends BaseApiController
                 'event_type' => $event->event_type,
                 'event_category' => $event->event_category,
                 'mode' => $event->mode,
-                'start_at' => $startAt?->toISOString(),
-                'end_at' => $endAt?->toISOString(),
-                'formatted_start_at' => $startAt?->format('d M Y h:i A'),
+                'start_at' => $responseStartAt?->toISOString(),
+                'end_at' => $responseEndAt?->toISOString(),
+                'formatted_start_at' => $groupingStartAt?->format('d M Y h:i A'),
                 'recurrence' => $event->recurrence_type,
                 'status' => $occurrence?->status ?? $event->status ?? 'scheduled',
                 'registered_count' => $this->registeredCount($event->id, $occurrenceId),
@@ -173,6 +185,28 @@ class EventApiController extends BaseApiController
                 'circle' => $circlePayload,
             ],
         ];
+    }
+
+    private function dateTimeForGrouping(mixed $dateTime, string $timezone): ?Carbon
+    {
+        if (! $dateTime) {
+            return null;
+        }
+
+        if ($dateTime instanceof DateTimeInterface) {
+            return Carbon::parse($dateTime->format('Y-m-d H:i:s.u'), $timezone);
+        }
+
+        return Carbon::parse((string) $dateTime)->setTimezone($timezone);
+    }
+
+    private function dateTimeForResponse(mixed $dateTime): ?Carbon
+    {
+        if (! $dateTime) {
+            return null;
+        }
+
+        return Carbon::parse($dateTime);
     }
 
     private function registeredCount(string $eventId, ?string $occurrenceId): int

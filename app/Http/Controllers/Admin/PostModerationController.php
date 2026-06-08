@@ -57,7 +57,7 @@ class PostModerationController extends Controller
         $inlineModerationStatus = $request->query('inline_moderation_status', 'any');
         $inlineActive = $request->query('inline_active', 'any');
         $media = $request->query('media', 'any');
-        $query = Post::query()
+        $query = Post::withTrashed()
             ->with(['user', 'circle'])
             ->when($circleId !== 'all' && filled($circleId), fn ($q) => $q->where('circle_id', $circleId));
 
@@ -130,12 +130,14 @@ class PostModerationController extends Controller
             });
         }
 
-        if (($filters['active'] ?? 'active') === 'deactivated' || $inlineActive === 'no') {
+        $activeFilter = $this->resolveActiveFilter($filters['active'] ?? 'active', $inlineActive);
+
+        if ($activeFilter === 'inactive') {
             $query->where(function ($subQuery) {
                 $subQuery->whereNotNull('posts.deleted_at')
                     ->orWhere('posts.is_deleted', true);
             });
-        } else {
+        } elseif ($activeFilter === 'active') {
             $query->whereNull('posts.deleted_at')
                 ->where(function ($subQuery) {
                     $subQuery->where('posts.is_deleted', false)
@@ -175,9 +177,9 @@ class PostModerationController extends Controller
             }
         }
 
-        if (($filters['active'] ?? 'all') === 'deactivated' || $inlineActive === 'no') {
+        if ($activeFilter === 'inactive') {
             $impactQuery->whereNull('timeline_posted_at');
-        } else {
+        } elseif ($activeFilter === 'active') {
             $impactQuery->whereNotNull('timeline_posted_at');
         }
 
@@ -282,6 +284,23 @@ class PostModerationController extends Controller
         ]);
     }
 
+    private function resolveActiveFilter(?string $active, ?string $inlineActive): string
+    {
+        if ($inlineActive === 'yes') {
+            return 'active';
+        }
+
+        if ($inlineActive === 'no') {
+            return 'inactive';
+        }
+
+        return match ($active) {
+            'active' => 'active',
+            'deactivated' => 'inactive',
+            default => 'all',
+        };
+    }
+
     private function hydrateTimelineRows($pageRows, Collection $postsById, Collection $impactsById): Collection
     {
         return collect($pageRows)->map(function ($row) use ($postsById, $impactsById) {
@@ -311,7 +330,8 @@ class PostModerationController extends Controller
                 'circle' => null,
                 'visibility' => 'public',
                 'moderation_status' => 'approved',
-                'deleted_at' => null,
+                'deleted_at' => $impact->timeline_posted_at ? null : $impact->updated_at,
+                'is_active' => ! is_null($impact->timeline_posted_at),
                 'content_text' => (string) $impact->story_to_share,
                 'media' => [],
                 'timeline_posted_at' => $impact->timeline_posted_at,
@@ -380,14 +400,41 @@ class PostModerationController extends Controller
     {
         $this->ensureGlobalAdmin();
 
-        $impact = Impact::query()->findOrFail($impactId);
+        $impact = Impact::query()->find($impactId);
+
+        if (! $impact) {
+            return redirect()->back()->withErrors('Impact post not found.');
+        }
+
+        if ($impact->status !== 'approved') {
+            return redirect()->back()->withErrors('Only approved impact posts can be deactivated from All Posts.');
+        }
 
         $impact->timeline_posted_at = null;
         $impact->save();
 
-        return redirect()->back()->with('success', 'Item deactivated successfully.');
+        return redirect()->back()->with('success', 'Impact post deactivated successfully.');
     }
 
+    public function activateImpact(string $impactId): RedirectResponse
+    {
+        $this->ensureGlobalAdmin();
+
+        $impact = Impact::query()->find($impactId);
+
+        if (! $impact) {
+            return redirect()->back()->withErrors('Impact post not found.');
+        }
+
+        if ($impact->status !== 'approved') {
+            return redirect()->back()->withErrors('Only approved impact posts can be activated from All Posts.');
+        }
+
+        $impact->timeline_posted_at = $impact->timeline_posted_at ?? now();
+        $impact->save();
+
+        return redirect()->back()->with('success', 'Impact post activated successfully.');
+    }
 
     public function restore(string $postId): RedirectResponse
     {

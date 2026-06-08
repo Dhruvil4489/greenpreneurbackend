@@ -226,6 +226,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/posts', [PostModerationController::class, 'index'])->name('posts.index');
         Route::get('/posts/{post}', [PostModerationController::class, 'show'])->name('posts.show');
         Route::post('/posts/impacts/{impact}/deactivate', [PostModerationController::class, 'deactivateImpact'])->whereUuid('impact')->name('posts.impacts.deactivate');
+        Route::post('/posts/impacts/{impact}/activate', [PostModerationController::class, 'activateImpact'])->whereUuid('impact')->name('posts.impacts.activate');
         Route::get('/post-reports', [PostReportsController::class, 'index'])->name('post-reports.index');
         Route::get('/post-reports/{report}', [PostReportsController::class, 'show'])->name('post-reports.show');
         Route::post('/post-reports/{report}/mark-reviewed', [PostReportsController::class, 'markReviewed'])->name('post-reports.mark-reviewed');

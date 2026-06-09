@@ -5,12 +5,15 @@ namespace App\Services;
 use App\Models\MembershipPlan;
 use App\Models\Payment;
 use App\Models\User;
-use App\Models\UserMembership;
-use Illuminate\Support\Facades\DB;
+use App\Services\Membership\MembershipUpgradeService;
 use Illuminate\Support\Str;
 
 class MembershipService
 {
+    public function __construct(private readonly MembershipUpgradeService $membershipUpgradeService)
+    {
+    }
+
     public function calculateAmounts(MembershipPlan $plan): array
     {
         $baseAmount = (float) $plan->price;
@@ -57,49 +60,23 @@ class MembershipService
         $now = now();
         $endsAt = null;
 
-        if ((int) $plan->duration_days > 0) {
+        if ((int) $plan->duration_months > 0) {
+            $endsAt = $now->copy()->addMonths((int) $plan->duration_months);
+        } elseif ((int) $plan->duration_days > 0) {
             $endsAt = $now->copy()->addDays((int) $plan->duration_days);
         }
 
-        UserMembership::query()
-            ->where('user_id', $user->id)
-            ->where('status', 'active')
-            ->update([
-                'status' => 'expired',
-                'ends_at' => $now,
-            ]);
-
-        $existingMembership = UserMembership::query()
-            ->where('payment_id', $payment->id)
-            ->first();
-
-        if (! $existingMembership) {
-            UserMembership::query()->create([
-                'id' => (string) Str::uuid(),
-                'user_id' => $user->id,
-                'membership_plan_id' => $plan->id,
-                'starts_at' => $now,
-                'ends_at' => $endsAt,
-                'status' => 'active',
-                'payment_id' => $payment->id,
-            ]);
-        }
-
-        $membershipStatus = $this->resolveMembershipStatus($plan);
-        $coins = (int) ($plan->coins ?? 0);
-
-        $userUpdate = [
-            'membership_status' => $membershipStatus,
+        return $this->membershipUpgradeService->markAsOnlyUnityPeerAfterPayment($user, [
+            'payment_id' => $payment->id,
+            'membership_plan_id' => $plan->id,
+            'plan_name' => $plan->name,
+            'plan' => $plan->slug,
+            'amount' => $plan->price,
+            'total_amount' => $payment->total_amount,
+            'duration_months' => $plan->duration_months ?: null,
+            'membership_starts_at' => $now,
             'membership_ends_at' => $endsAt,
-            'membership_expiry' => $endsAt,
-        ];
-
-        if ($coins > 0) {
-            $userUpdate['coins_balance'] = DB::raw('COALESCE(coins_balance, 0) + ' . $coins);
-        }
-
-        User::query()->where('id', $user->id)->update($userUpdate);
-
-        return $user->fresh();
+            'paid_at' => $payment->paid_at ?? $now,
+        ]);
     }
 }

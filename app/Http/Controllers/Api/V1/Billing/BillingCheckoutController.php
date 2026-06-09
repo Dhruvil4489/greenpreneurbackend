@@ -7,6 +7,7 @@ use App\Models\Payment;
 use App\Models\User;
 use App\Models\UserMembership;
 use App\Services\Billing\MembershipSyncService;
+use App\Services\Membership\MembershipUpgradeService;
 use App\Services\Membership\MembershipWelcomeEmailService;
 use App\Support\Zoho\ZohoBillingService;
 use Illuminate\Http\Request;
@@ -23,6 +24,7 @@ class BillingCheckoutController extends Controller
         private readonly ZohoBillingService $zohoBillingService,
         private readonly MembershipSyncService $membershipSyncService,
         private readonly MembershipWelcomeEmailService $membershipWelcomeEmailService,
+        private readonly MembershipUpgradeService $membershipUpgradeService,
     ) {
     }
 
@@ -298,16 +300,13 @@ class BillingCheckoutController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Membership synced successfully.',
-                'data' => [
-                    'membership_status' => $freshUser?->membership_status ?? $freshUser?->membership_type ?? $freshUser?->membership ?? 'active',
-                    'membership_starts_at' => $freshUser?->membership_starts_at,
-                    'membership_ends_at' => $freshUser?->membership_ends_at,
+                'message' => 'Membership payment completed successfully.',
+                'data' => array_merge($this->membershipUpgradeService->membershipResponseData($freshUser), [
                     'zoho_subscription_id' => $freshUser?->zoho_subscription_id,
                     'zoho_last_invoice_id' => $freshUser?->zoho_last_invoice_id,
                     'zoho_plan_code' => $freshUser?->zoho_plan_code,
                     'hostedpage_status' => $hostedPageStatus,
-                ],
+                ]),
             ]);
         } catch (Throwable $throwable) {
             Log::error('Zoho checkout status sync failed', [
@@ -354,9 +353,25 @@ class BillingCheckoutController extends Controller
             $payload['provider'] = 'zoho';
         }
 
+        foreach ([
+            'metadata' => ['source' => 'membership_payment', 'user_id' => (string) $user->id, 'plan_code' => $planCode, 'zoho_hostedpage_id' => $hostedpageId],
+            'description' => 'membership_payment | user_id=' . $user->id . ' | plan=' . $planCode,
+        ] as $column => $value) {
+            if (Schema::hasColumn('payments', $column)) {
+                $payload[$column] = $value;
+            }
+        }
+
         $payment->forceFill($payload);
 
         $payment->save();
+
+        Log::info('Membership payment link created', [
+            'payment_id' => (string) $payment->id,
+            'user_id' => (string) $user->id,
+            'plan_code' => $planCode,
+            'zoho_hostedpage_id' => $hostedpageId,
+        ]);
     }
 
     private function syncUserMembershipRow(User $user, Payment $payment, mixed $startsAt, mixed $endsAt): void

@@ -8,7 +8,7 @@ use App\Models\Payment;
 use App\Models\User;
 use App\Models\WebhookEvent;
 use App\Services\Events\EventPaymentSyncService;
-use App\Support\Membership\MembershipUpdater;
+use App\Services\Membership\MembershipUpgradeService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -22,7 +22,7 @@ class ZohoPaymentWebhookService
 
     public function __construct(
         private readonly EventPaymentSyncService $paymentSync,
-        private readonly MembershipUpdater $membershipUpdater,
+        private readonly MembershipUpgradeService $membershipUpgradeService,
     ) {}
 
     public function handle(Request $request): array
@@ -757,9 +757,10 @@ class ZohoPaymentWebhookService
         $amountApplied = (float) ($info['amount_applied'] ?? 0);
         $balanceAmount = (float) ($info['balance_amount'] ?? 0);
 
-        return ($paymentStatus === 'paid' || $status === 'success')
-            && $amountApplied > 0
-            && abs($balanceAmount) < 0.00001;
+        return in_array($paymentStatus, ['paid', 'success', 'succeeded', 'completed', 'payment_success', 'captured'], true)
+            || in_array($status, ['paid', 'success', 'succeeded', 'completed', 'payment_success', 'captured'], true)
+            || ($amountApplied > 0 && abs($balanceAmount) < 0.00001)
+            || ! empty($info['payment_id']);
     }
 
     private function applySubscriptionPayment(?Model $record, User $user, array $payload, array $info): void
@@ -772,17 +773,17 @@ class ZohoPaymentWebhookService
             $this->updateSubscriptionPaymentRecord($record, $payload, $info, $paidAt);
         }
 
-        $this->membershipUpdater->applyPaidMembership($user, [
+        $this->membershipUpgradeService->markAsOnlyUnityPeerAfterPayment($user, [
+            'payment_id' => $record instanceof Payment ? $record->id : null,
             'zoho_customer_id' => $info['customer_id'] ?: $user->zoho_customer_id,
             'zoho_subscription_id' => $info['subscription_id'] ?: $user->zoho_subscription_id,
-            'zoho_plan_code' => $user->zoho_plan_code ?: 'unity_peer',
-            'zoho_last_invoice_id' => $info['invoice_id'] ?: $user->zoho_last_invoice_id,
+            'zoho_plan_code' => $user->zoho_plan_code ?: ($info['plan_code'] ?? 'unity_peer'),
+            'zoho_invoice_id' => $info['invoice_id'] ?: $user->zoho_last_invoice_id,
+            'zoho_payment_id' => $info['payment_id'] ?? null,
             'membership_starts_at' => $startsAt,
             'membership_ends_at' => $endsAt,
-            'membership_start_date' => Carbon::parse($startsAt)->toDateString(),
-            'membership_end_date' => Carbon::parse($endsAt)->toDateString(),
-            'last_payment_at' => $paidAt,
-            'membership_approved_at' => now(),
+            'paid_at' => $paidAt,
+            'amount' => $info['amount'] ?? null,
         ]);
 
         $userUpdates = [];
@@ -858,11 +859,9 @@ class ZohoPaymentWebhookService
 
         return str_contains($type, 'paid')
             || str_contains($type, 'success')
-            || in_array($status, ['paid', 'success', 'succeeded'], true)
-            || in_array($paymentStatus, ['paid', 'success', 'succeeded'], true)
-            || ($type === 'customer_payment' && ! empty($info['payment_id']) && ($invoiceLooksPaid || in_array($status, ['paid', 'success'], true) || $paymentStatus === 'paid'));
             || in_array($status, ['paid', 'success', 'succeeded', 'completed', 'payment_success', 'captured'], true)
-            || ! empty($info['payment_id']);
+            || in_array($paymentStatus, ['paid', 'success', 'succeeded', 'completed', 'payment_success', 'captured'], true)
+            || ($type === 'customer_payment' && ! empty($info['payment_id']) && ($invoiceLooksPaid || in_array($status, ['paid', 'success'], true) || $paymentStatus === 'paid'));
     }
 
     private function isAlreadyFullySynced(EventRegistration $registration): bool

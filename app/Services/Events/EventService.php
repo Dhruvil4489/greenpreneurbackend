@@ -55,6 +55,9 @@ class EventService
     {
         $eventType = $filters['event_type'] ?? $filters['type'] ?? null;
         $search = $filters['search'] ?? $filters['title'] ?? null;
+        $status = $filters['status'] ?? null;
+        $timezone = config('app.timezone') ?: 'UTC';
+
 
         $query = EventOccurrence::query()
             ->with(['event.circle', 'registrations' => fn ($q) => $user ? $q->where('user_id', $user->id) : $q->whereRaw('1 = 0')])
@@ -86,15 +89,54 @@ class EventService
             });
 
         $this->applyValidOccurrenceStatusScope($query);
+        $this->applyOccurrenceStatusFilter($query, $status, $timezone);
 
-        if (($filters['upcoming'] ?? 'true') !== 'false') {
-            $query->where('start_at', '>=', now()->startOfDay());
+        if (! $this->statusFilterControlsDateWindow($status) && ($filters['upcoming'] ?? 'true') !== 'false') {
+            $query->where('start_at', '>=', Carbon::now($timezone)->startOfDay());
         }
 
-        $query->when($filters['from_date'] ?? null, fn ($q, $v) => $q->where('start_at', '>=', Carbon::parse($v)->startOfDay()))
-            ->when($filters['to_date'] ?? null, fn ($q, $v) => $q->where('start_at', '<=', Carbon::parse($v)->endOfDay()));
+        $query->when($filters['from_date'] ?? null, fn ($q, $v) => $q->where('start_at', '>=', Carbon::parse($v, $timezone)->startOfDay()))
+            ->when($filters['to_date'] ?? null, fn ($q, $v) => $q->where('start_at', '<=', Carbon::parse($v, $timezone)->endOfDay()));
 
         return $query->orderBy('start_at')->paginate($perPage);
+    }
+
+
+    private function applyOccurrenceStatusFilter(Builder $query, ?string $status, string $timezone): void
+    {
+        if (! $status || $status === 'all') {
+            return;
+        }
+
+        $now = Carbon::now($timezone);
+
+        match ($status) {
+            'today' => $query->whereBetween('start_at', [$now->copy()->startOfDay(), $now->copy()->endOfDay()]),
+            'live' => $query->where('start_at', '<=', $now)->where(function (Builder $liveQuery) use ($now): void {
+                $liveQuery->whereNull('end_at')->orWhere('end_at', '>=', $now);
+            }),
+            'upcoming' => $query->where('start_at', '>', $now),
+            default => $this->applyExactOccurrenceOrEventStatusFilter($query, $status),
+        };
+    }
+
+    private function applyExactOccurrenceOrEventStatusFilter(Builder $query, string $status): void
+    {
+        $query->where(function (Builder $statusQuery) use ($status): void {
+            if (Schema::hasColumn('event_occurrences', 'status')) {
+                $statusQuery->where('status', $status);
+            }
+
+            if (Schema::hasColumn('events', 'status')) {
+                $method = Schema::hasColumn('event_occurrences', 'status') ? 'orWhereHas' : 'whereHas';
+                $statusQuery->{$method}('event', fn (Builder $eventQuery) => $eventQuery->where('status', $status));
+            }
+        });
+    }
+
+    private function statusFilterControlsDateWindow(?string $status): bool
+    {
+        return in_array($status, ['today', 'live', 'upcoming'], true);
     }
 
     private function applyValidEventStatusScope(Builder $query): void
@@ -130,6 +172,10 @@ class EventService
     private function applyEventVisibilityScope(Builder $query, ?User $user): void
     {
         if (! $user || $this->isAdmin($user)) {
+            return;
+        }
+
+        if ((bool) config('events.list_all_valid_occurrences', true)) {
             return;
         }
 

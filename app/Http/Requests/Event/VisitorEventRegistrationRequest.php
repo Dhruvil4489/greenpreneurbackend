@@ -27,16 +27,16 @@ class VisitorEventRegistrationRequest extends FormRequest
             'visitor_name' => ['required', 'string', 'max:150'],
             'visitor_email' => ['required', 'email', 'max:150'],
             'visitor_phone' => ['required', 'string', 'max:20'],
-            'visitor_company' => ['nullable', 'string', 'max:120'],
-            'visitor_city' => ['nullable', 'string', 'max:120'],
+            'visitor_company' => ['required', 'string', 'max:120'],
+            'visitor_city' => ['required', 'string', 'max:120'],
             'visitor_designation' => ['nullable', 'string', 'max:150'],
             'visitor_business_category_id' => $this->visitorBusinessCategorySubIdRules(),
             'visitor_business_category' => ['nullable', 'string', 'max:150'],
-            'visitor_business_category_main_id' => ['nullable', 'integer'],
-            'visitor_business_category_sub_id' => $this->visitorBusinessCategorySubIdRules(),
+            'visitor_business_category_main_id' => ['required', 'integer'],
+            'visitor_business_category_sub_id' => $this->visitorBusinessCategorySubIdRules(true),
             'visitor_business_website' => ['nullable', 'url', 'max:255'],
             'visitor_business_brief' => ['nullable', 'string', 'max:2000'],
-            'invited_by_type' => ['nullable', 'string', 'max:50'],
+            'invited_by_type' => ['required', 'string', 'max:50'],
             'invited_by_user_id' => ['nullable', 'uuid', 'exists:users,id'],
             'full_name' => ['sometimes', 'string', 'max:150'],
             'email' => ['sometimes', 'nullable', 'email', 'max:150'],
@@ -57,9 +57,9 @@ class VisitorEventRegistrationRequest extends FormRequest
         ];
     }
 
-    private function visitorBusinessCategorySubIdRules(): array
+    private function visitorBusinessCategorySubIdRules(bool $required = false): array
     {
-        $rules = ['nullable', 'integer'];
+        $rules = [$required ? 'required' : 'nullable', 'integer'];
 
         $table = $this->level4CategoriesTable();
         if ($table) {

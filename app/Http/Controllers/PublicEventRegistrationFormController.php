@@ -32,6 +32,7 @@ class PublicEventRegistrationFormController extends Controller
     public function show(Request $request, string $event, string $occurrence): View
     {
         [$event, $occurrence] = $this->publicEventAndOccurrence($event, $occurrence);
+        $unavailableMessage = $this->occurrenceUnavailableMessage($event, $occurrence);
 
         Log::info('public_event_registration_form_route_loaded', [
             'event_id' => (string) $event->id,
@@ -48,7 +49,7 @@ class PublicEventRegistrationFormController extends Controller
                 ->where('event_id', $event->id)
                 ->where('occurrence_id', $occurrence->id)
                 ->findOrFail((string) $request->query('registration_id'));
-            $registration = EventRegistration::query()->findOrFail((string) $request->query('registration_id'));
+
             if ((string) $registration->event_id !== (string) $event->id || (string) $registration->occurrence_id !== (string) $occurrence->id) {
                 Log::warning('public_event_registration_form_registration_mismatch', [
                     'requested_event_id' => (string) $event->id,
@@ -64,19 +65,26 @@ class PublicEventRegistrationFormController extends Controller
             $qr = $this->qrDetailsForDisplay($registration);
         }
 
-        return view('events.visitor-register', [
+        return view('public.events.visitor-register', [
             'event' => $event,
             'occurrence' => $occurrence,
             'categories' => $this->categories(),
             'payment' => $payment,
             'qr' => $qr,
             'registration' => $registration,
+            'unavailableMessage' => $unavailableMessage,
         ]);
     }
 
     public function submit(VisitorEventRegistrationRequest $request, string $event, string $occurrence): RedirectResponse
     {
         [$event, $occurrence] = $this->publicEventAndOccurrence($event, $occurrence);
+
+        if ($message = $this->occurrenceUnavailableMessage($event, $occurrence)) {
+            return back()
+                ->withInput()
+                ->withErrors(['registration' => $message]);
+        }
 
         try {
             $registration = $this->registrations->registerVisitor(
@@ -100,6 +108,23 @@ class PublicEventRegistrationFormController extends Controller
         $registration = $this->registrations->ensureVisitorRegistrationFormUrl($registration);
 
         return redirect()->to($this->registrations->visitorRegistrationFormUrl($registration));
+    }
+
+
+    private function occurrenceUnavailableMessage(Event $event, EventOccurrence $occurrence): ?string
+    {
+        $status = strtolower((string) ($occurrence->status ?? $event->status ?? 'scheduled'));
+
+        if (in_array($status, ['cancelled', 'canceled', 'rejected', 'deleted', 'archived', 'inactive'], true)) {
+            return 'Registration is currently unavailable for this event occurrence.';
+        }
+
+        $limit = $occurrence->registration_limit ?? $event->registration_limit;
+        if ($limit && (int) ($occurrence->registered_count ?? 0) >= (int) $limit) {
+            return 'Registration is closed because this event occurrence is full.';
+        }
+
+        return null;
     }
 
     private function prepareRegistrationForDisplay(EventRegistration $registration): EventRegistration

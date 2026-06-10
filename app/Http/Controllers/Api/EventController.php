@@ -56,7 +56,7 @@ class EventController extends BaseApiController
     public function index(Request $request)
     {
         $perPage = max(1, min((int) $request->input('per_page', 20), 100));
-        $paginator = $this->events->listOccurrences($request->only(['event_type', 'type', 'circle_id', 'mode', 'from_date', 'to_date', 'upcoming', 'search', 'title']), $request->user(), $perPage);
+        $paginator = $this->events->listOccurrences($request->only(['event_type', 'type', 'circle_id', 'mode', 'from_date', 'to_date', 'status', 'upcoming', 'search', 'title']), $request->user(), $perPage);
 
         return $this->success([
             'total' => $paginator->total(),

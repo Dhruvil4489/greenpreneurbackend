@@ -34,6 +34,11 @@ class EventOccurrenceListResource extends JsonResource
             'event_type' => $event->event_type,
             'event_category' => $event->event_category,
             'mode' => $event->mode,
+            'recurrence' => [
+                'type' => $event->recurrence_type,
+                'interval' => $event->recurrence_interval,
+                'ends_at' => optional($event->recurrence_ends_at)->toISOString(),
+            ],
             'circle' => $event->circle ? ['id' => $event->circle->id, 'name' => $event->circle->name, 'slug' => $event->circle->slug ?? null] : null,
             'start_at' => optional($this->start_at)->toISOString(),
             'end_at' => optional($this->end_at)->toISOString(),
@@ -66,7 +71,8 @@ class EventOccurrenceListResource extends JsonResource
             'can_register_reason' => $canRegister['reason'],
             'visitor_registration_enabled' => $visitorRegistrationEnabled,
             'zoho_form_url' => $zohoFormUrl,
-            'visitor_registration_url' => $visitorRegistrationEnabled ? $zohoFormUrl : null,
+            'visitor_registration_url' => $visitorRegistrationEnabled ? url('/events/'.$event->id.'/occurrences/'.$this->id.'/visitor-register') : null,
+            'zoho_visitor_registration_url' => $visitorRegistrationEnabled ? $zohoFormUrl : null,
             'member_registration_enabled' => $eventService->memberRegistrationEnabled($event),
             'user_registration' => [
                 'is_registered' => (bool) $registration,

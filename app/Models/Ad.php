@@ -28,10 +28,7 @@ class Ad extends Model
         'image_path',
         'redirect_url',
         'button_text',
-        'placement',
         'page_name',
-        'timeline_position',
-        'sort_order',
         'is_active',
         'starts_at',
         'ends_at',
@@ -40,8 +37,6 @@ class Ad extends Model
 
     protected $casts = [
         'is_active' => 'boolean',
-        'timeline_position' => 'integer',
-        'sort_order' => 'integer',
         'starts_at' => 'datetime',
         'ends_at' => 'datetime',
     ];
@@ -53,15 +48,6 @@ class Ad extends Model
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('is_active', true);
-    }
-
-    public function scopeForPlacement(Builder $query, ?string $placement): Builder
-    {
-        if (blank($placement)) {
-            return $query;
-        }
-
-        return $query->whereRaw('LOWER(placement) = ?', [strtolower($placement)]);
     }
 
     public function scopeCurrentlyVisible(Builder $query): Builder

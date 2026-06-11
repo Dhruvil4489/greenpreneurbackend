@@ -22,10 +22,6 @@ class AdController extends Controller
             ->when($search !== '', function ($query) use ($search) {
                 $query->where('title', 'ILIKE', '%' . $search . '%');
             })
-            ->orderBy('placement')
-            ->orderByRaw('CASE WHEN timeline_position IS NULL THEN 1 ELSE 0 END')
-            ->orderBy('timeline_position')
-            ->orderBy('sort_order')
             ->orderByDesc('created_at')
             ->paginate(20)
             ->appends($request->query());
@@ -36,8 +32,7 @@ class AdController extends Controller
     public function create(): View
     {
         return view('admin.ads.create', [
-            'ad' => new Ad(['placement' => 'timeline', 'is_active' => true, 'sort_order' => 0]),
-            'placements' => $this->placements(),
+            'ad' => new Ad(['is_active' => true]),
         ]);
     }
 
@@ -61,7 +56,6 @@ class AdController extends Controller
     {
         return view('admin.ads.edit', [
             'ad' => $ad,
-            'placements' => $this->placements(),
         ]);
     }
 
@@ -110,18 +104,20 @@ class AdController extends Controller
         unset($data['image']);
 
         $data['is_active'] = $request->boolean('is_active');
-        $data['sort_order'] = (int) ($data['sort_order'] ?? 0);
 
-        if (($data['placement'] ?? null) !== 'timeline') {
-            $data['timeline_position'] = null;
+        if (! empty($data['starts_at'])) {
+            $data['starts_at'] = \Illuminate\Support\Carbon::parse($data['starts_at'], 'Asia/Kolkata')->utc();
+        } else {
+            $data['starts_at'] = null;
+        }
+
+        if (! empty($data['ends_at'])) {
+            $data['ends_at'] = \Illuminate\Support\Carbon::parse($data['ends_at'], 'Asia/Kolkata')->utc();
+        } else {
+            $data['ends_at'] = null;
         }
 
         return $data;
-    }
-
-    private function placements(): array
-    {
-        return ['timeline', 'home', 'category', 'sidebar'];
     }
 
     private function storeImage(StoreAdRequest|UpdateAdRequest $request): string

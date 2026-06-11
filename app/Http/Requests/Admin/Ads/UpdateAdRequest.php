@@ -14,8 +14,6 @@ class UpdateAdRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         $this->merge([
-            'timeline_position' => $this->filled('timeline_position') ? (int) $this->timeline_position : null,
-            'sort_order' => $this->filled('sort_order') ? (int) $this->sort_order : 0,
             'is_active' => $this->boolean('is_active'),
         ]);
     }
@@ -29,10 +27,7 @@ class UpdateAdRequest extends FormRequest
             'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
             'redirect_url' => ['nullable', 'url', 'max:500'],
             'button_text' => ['nullable', 'string', 'max:100'],
-            'placement' => ['required', 'string', 'max:50'],
             'page_name' => ['nullable', 'string', 'max:100'],
-            'timeline_position' => ['nullable', 'integer', 'min:1'],
-            'sort_order' => ['nullable', 'integer', 'min:0'],
             'starts_at' => ['nullable', 'string'],
             'ends_at' => ['nullable', 'string'],
             'is_active' => ['nullable', 'boolean'],

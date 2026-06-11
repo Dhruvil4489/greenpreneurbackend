@@ -40,9 +40,6 @@
                     <th>ID</th>
                     <th>Image</th>
                     <th>Title</th>
-                    <th>Placement</th>
-                    <th>Timeline Position</th>
-                    <th>Sort Order</th>
                     <th>Status</th>
                     <th>Start Date</th>
                     <th>End Date</th>
@@ -61,14 +58,11 @@
                             @endif
                         </td>
                         <td>{{ $ad->title }}</td>
-                        <td>{{ $ad->placement }}</td>
-                        <td>{{ $ad->timeline_position ?: '—' }}</td>
-                        <td>{{ $ad->sort_order }}</td>
                         <td>
                             <span class="badge {{ $ad->is_active ? 'bg-success' : 'bg-secondary' }}">{{ $ad->is_active ? 'Active' : 'Inactive' }}</span>
                         </td>
-                        <td>{{ optional($ad->starts_at)->format('Y-m-d H:i') ?: '—' }}</td>
-                        <td>{{ optional($ad->ends_at)->format('Y-m-d H:i') ?: '—' }}</td>
+                        <td>{{ $ad->starts_at ? $ad->starts_at->timezone('Asia/Kolkata')->format('Y-m-d H:i') : '—' }}</td>
+                        <td>{{ $ad->ends_at ? $ad->ends_at->timezone('Asia/Kolkata')->format('Y-m-d H:i') : '—' }}</td>
                         <td>
                             <div class="d-flex flex-wrap gap-1">
                                 <a href="{{ route('admin.ads.edit', $ad) }}" class="btn btn-sm btn-outline-primary">Edit</a>
@@ -87,7 +81,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="10" class="text-center text-muted py-3">No ads found.</td>
+                        <td colspan="7" class="text-center text-muted py-3">No ads found.</td>
                     </tr>
                 @endforelse
             </tbody>

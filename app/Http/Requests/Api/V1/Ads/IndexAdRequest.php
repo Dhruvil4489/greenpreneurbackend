@@ -14,7 +14,6 @@ class IndexAdRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'placement' => ['nullable', 'string', 'max:50'],
             'page_name' => ['nullable', 'string', 'max:100'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:50'],
         ];

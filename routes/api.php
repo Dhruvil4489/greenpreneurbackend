@@ -854,6 +854,8 @@ Route::prefix('v1')->group(function () {
     // Other module routes (members, circles, posts, etc.) will be added here later.
 });
 
+Route::get('/ads', [App\Http\Controllers\Api\V1\AdController::class, 'publicIndex']);
+
 Route::middleware(['auth:sanctum', 'unity.user'])->prefix('admin')->group(function () {
     Route::get('/campaigns', [AdminCampaignController::class, 'index']);
     Route::post('/campaigns', [AdminCampaignController::class, 'store']);

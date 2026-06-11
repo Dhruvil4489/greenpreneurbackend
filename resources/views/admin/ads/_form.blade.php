@@ -8,26 +8,10 @@
         <input type="text" name="subtitle" class="form-control" value="{{ old('subtitle', $ad->subtitle) }}" maxlength="255">
     </div>
     <div class="col-md-6">
-        <label class="form-label">Placement <span class="text-danger">*</span></label>
-        <select name="placement" class="form-select" required>
-            @foreach($placements as $placement)
-                <option value="{{ $placement }}" @selected(old('placement', $ad->placement) === $placement)>{{ ucfirst($placement) }}</option>
-            @endforeach
-        </select>
-    </div>
-    <div class="col-md-6">
         <label class="form-label">Page Name</label>
         <input type="text" name="page_name" class="form-control" value="{{ old('page_name', $ad->page_name) }}" maxlength="100">
     </div>
-    <div class="col-md-4">
-        <label class="form-label">Timeline Position</label>
-        <input type="number" min="1" name="timeline_position" class="form-control" value="{{ old('timeline_position', $ad->timeline_position) }}">
-    </div>
-    <div class="col-md-4">
-        <label class="form-label">Sort Order</label>
-        <input type="number" min="0" name="sort_order" class="form-control" value="{{ old('sort_order', $ad->sort_order ?? 0) }}">
-    </div>
-    <div class="col-md-4 d-flex align-items-end">
+    <div class="col-md-6 d-flex align-items-end pb-2">
         <div class="form-check form-switch">
             <input class="form-check-input" type="checkbox" role="switch" id="is_active" name="is_active" value="1" @checked(old('is_active', $ad->is_active ?? true))>
             <label class="form-check-label" for="is_active">Active</label>
@@ -43,11 +27,11 @@
     </div>
     <div class="col-md-6">
         <label class="form-label">Starts At</label>
-        <input type="datetime-local" name="starts_at" class="form-control" value="{{ old('starts_at', optional($ad->starts_at)->format('Y-m-d\TH:i')) }}">
+        <input type="datetime-local" name="starts_at" class="form-control" value="{{ old('starts_at', $ad->starts_at ? $ad->starts_at->timezone('Asia/Kolkata')->format('Y-m-d\TH:i') : '') }}">
     </div>
     <div class="col-md-6">
         <label class="form-label">Ends At</label>
-        <input type="datetime-local" name="ends_at" class="form-control" value="{{ old('ends_at', optional($ad->ends_at)->format('Y-m-d\TH:i')) }}">
+        <input type="datetime-local" name="ends_at" class="form-control" value="{{ old('ends_at', $ad->ends_at ? $ad->ends_at->timezone('Asia/Kolkata')->format('Y-m-d\TH:i') : '') }}">
     </div>
     <div class="col-12">
         <label class="form-label">Description</label>

@@ -16,7 +16,7 @@
     <div class="alert alert-danger">{{ session('error') }}</div>
 @endif
 
-<div class="card p-3 peers-index-card">
+<div class="card p-3">
     <form id="usersFiltersForm" method="GET" class="d-none">
         <input type="hidden" name="sort" value="{{ $filters['sort'] }}">
         <input type="hidden" name="dir" value="{{ $filters['dir'] }}">
@@ -102,7 +102,7 @@
         <input type="hidden" name="sort" value="{{ $filters['sort'] }}">
         <input type="hidden" name="dir" value="{{ $filters['dir'] }}">
     </form>
-    <div class="table-responsive peers-list-scroll">
+    <div class="table-responsive">
         <table class="table align-middle">
             <thead class="table-light">
                 <tr>

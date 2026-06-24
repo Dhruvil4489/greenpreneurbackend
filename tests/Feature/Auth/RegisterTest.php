@@ -67,11 +67,14 @@ class RegisterTest extends TestCase
         $response = $this->postJson('/api/v1/auth/register', $payload);
 
         $response->assertStatus(201)
-            ->assertJsonPath('data.user.membership_status', User::STATUS_FREE_TRIAL);
+            ->assertJsonPath('data.user.membership_status', User::STATUS_FREE_TRIAL)
+            ->assertJsonPath('data.user.status', 'inactive');
 
         $this->assertDatabaseHas('users', [
             'email' => 'trial-user@example.com',
             'membership_status' => User::STATUS_FREE_TRIAL,
+            'status' => 'inactive',
+            'registration_source' => 'App',
         ]);
 
         $user = User::query()->where('email', 'trial-user@example.com')->firstOrFail();
@@ -104,6 +107,9 @@ class RegisterTest extends TestCase
     {
         Schema::dropIfExists('personal_access_tokens');
         Schema::dropIfExists('users');
+        Schema::dropIfExists('circle_members');
+        Schema::dropIfExists('email_logs');
+        Schema::dropIfExists('joined_circle_categories');
 
         Schema::create('users', function (Blueprint $table) {
             $table->uuid('id')->primary();
@@ -116,6 +122,8 @@ class RegisterTest extends TestCase
             $table->string('company_name', 150)->nullable();
             $table->string('designation', 100)->nullable();
             $table->uuid('city_id')->nullable();
+            $table->string('status', 50)->default('inactive');
+            $table->string('registration_source', 100)->nullable();
             $table->string('membership_status', 50)->default('visitor');
             $table->timestamp('membership_expiry')->nullable();
             $table->timestamp('membership_starts_at')->nullable();
@@ -128,7 +136,7 @@ class RegisterTest extends TestCase
         });
 
         Schema::create('personal_access_tokens', function (Blueprint $table) {
-            $table->uuid('id')->primary();
+            $table->bigIncrements('id');
             $table->string('tokenable_type');
             $table->uuid('tokenable_id');
             $table->string('name');
@@ -139,6 +147,51 @@ class RegisterTest extends TestCase
             $table->timestamps();
 
             $table->index(['tokenable_type', 'tokenable_id']);
+        });
+
+        Schema::create('circle_members', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->uuid('circle_id');
+            $table->uuid('user_id');
+            $table->string('role', 50)->default('member');
+            $table->string('status', 50)->default('approved');
+            $table->timestamp('joined_at')->nullable();
+            $table->timestamp('left_at')->nullable();
+            $table->timestamps();
+            $table->softDeletes();
+        });
+
+        Schema::create('email_logs', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->uuid('user_id')->nullable();
+            $table->string('to_email');
+            $table->string('to_name')->nullable();
+            $table->string('template_key')->nullable();
+            $table->string('subject')->nullable();
+            $table->string('source_module')->nullable();
+            $table->string('related_type')->nullable();
+            $table->string('related_id')->nullable();
+            $table->string('source_type')->nullable();
+            $table->string('source_id')->nullable();
+            $table->string('source_event')->nullable();
+            $table->string('status');
+            $table->text('body_html')->nullable();
+            $table->text('payload')->nullable();
+            $table->text('error_message')->nullable();
+            $table->timestamp('sent_at')->nullable();
+            $table->timestamp('created_at')->nullable();
+        });
+
+        Schema::create('joined_circle_categories', function (Blueprint $table) {
+            $table->id();
+            $table->uuid('user_id');
+            $table->uuid('circle_id');
+            $table->uuid('circle_member_id');
+            $table->integer('level1_category_id')->nullable();
+            $table->integer('level2_category_id')->nullable();
+            $table->integer('level3_category_id')->nullable();
+            $table->integer('level4_category_id')->nullable();
+            $table->timestamps();
         });
     }
 }

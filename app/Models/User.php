@@ -22,6 +22,8 @@ class User extends Authenticatable
 {
     public const STATUS_FREE_TRIAL = 'free_trial_peer';
     public const STATUS_FREE = 'free_peer';
+    public const STATUS_GREEN_PEER = 'Only Green Peer';
+    public const STATUS_GREEN_PEER_LABEL = 'Only Green Peer';
 
     private const FREE_PEER_STATUS_CANDIDATES = [self::STATUS_FREE, 'Free Peer', 'Free_peer'];
 

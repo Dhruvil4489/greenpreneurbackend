@@ -9,7 +9,7 @@ use Illuminate\Support\Str;
 
 class AdminAuditService
 {
-    public function log(User $actor, string $action, string $resourceType, ?string $resourceId, array $old = [], array $new = [], ?Request $request = null): void
+    public function log(User|\App\Models\AdminUser $actor, string $action, string $resourceType, ?string $resourceId, array $old = [], array $new = [], ?Request $request = null): void
     {
         AdminAuditLog::query()->create([
             'id' => (string) Str::uuid(),

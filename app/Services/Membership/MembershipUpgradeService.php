@@ -16,13 +16,13 @@ use Throwable;
 
 class MembershipUpgradeService
 {
-    public const ONLY_UNITY_PEER_STATUS = 'only_unity_peer';
-    public const ONLY_UNITY_PEER_LABEL = 'Only Unity Peer';
+    public const ONLY_GREEN_PEER_STATUS = 'Only Green Peer';
+    public const ONLY_GREEN_PEER_LABEL = 'Only Green Peer';
 
     /**
-     * Mark a successfully paid membership purchase as Only Unity Peer without touching coins or circle data.
+     * Mark a successfully paid membership purchase as Only Green Peer without touching coins or circle data.
      */
-    public function markAsOnlyUnityPeerAfterPayment(User $user, array|Model|null $paymentOrPlanData = null): User
+    public function markAsOnlyGreenPeerAfterPayment(User $user, array|Model|null $paymentOrPlanData = null): User
     {
         return DB::transaction(function () use ($user, $paymentOrPlanData): User {
             $lockedUser = User::query()->whereKey($user->getKey())->lockForUpdate()->firstOrFail();
@@ -41,7 +41,7 @@ class MembershipUpgradeService
                 ?? $this->calculateExpiry($startedAt, $data, $payment);
 
             $userUpdates = $this->filterColumns('users', [
-                'membership_status' => self::ONLY_UNITY_PEER_STATUS,
+                'membership_status' => self::ONLY_GREEN_PEER_STATUS,
                 'membership_starts_at' => $startedAt,
                 'membership_ends_at' => $expiresAt,
                 'membership_start_date' => $startedAt->toDateString(),
@@ -82,7 +82,7 @@ class MembershipUpgradeService
             Log::info('Membership payment completed', [
                 'user_id' => (string) $lockedUser->id,
                 'payment_id' => $payment?->getKey(),
-                'membership_status' => self::ONLY_UNITY_PEER_STATUS,
+                'membership_status' => self::ONLY_GREEN_PEER_STATUS,
                 'membership_starts_at' => $startedAt->toDateTimeString(),
                 'membership_expires_at' => $expiresAt->toDateTimeString(),
             ]);
@@ -97,7 +97,7 @@ class MembershipUpgradeService
             'payment_status' => $paymentStatus,
             'membership_status' => $user->membership_status,
             'membership_badge' => strtoupper(str_replace(' ', '_', (string) $user->membership_status)),
-            'membership_label' => self::ONLY_UNITY_PEER_LABEL,
+            'membership_label' => self::ONLY_GREEN_PEER_LABEL,
             'membership_started_at' => $user->membership_starts_at ?? $user->membership_start_date ?? null,
             'membership_expires_at' => $user->membership_ends_at ?? $user->membership_end_date ?? $user->membership_expiry ?? null,
         ];

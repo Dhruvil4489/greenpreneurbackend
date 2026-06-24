@@ -207,6 +207,8 @@ class UsersController extends Controller
 
         DB::transaction(function () use (&$user, $validated, $circleId, $request) {
             $user = User::create($validated);
+            $user->registration_source = 'Admin Panel';
+            $user->save();
 
             if (! $circleId) {
                 return;
@@ -1417,7 +1419,7 @@ class UsersController extends Controller
             return back()->with('warning', 'Selected peer is not eligible for membership approval.');
         }
 
-        return back()->with('success', 'Peer approved successfully as Only Unity Peer. Membership valid until ' . $endDate->toDateString() . '.');
+        return back()->with('success', 'Peer approved successfully as Only Green Peer. Membership valid until ' . $endDate->toDateString() . '.');
     }
 
     public function bulkApproveMembership(Request $request): RedirectResponse
@@ -1450,7 +1452,7 @@ class UsersController extends Controller
             return $this->approveEligibleUsers($users, $startDate, $endDate, $adminId ? (string) $adminId : null);
         });
 
-        return back()->with('success', "Approved {$result['approved_count']} peers as Only Unity Peer. Skipped {$result['skipped_count']} non-eligible peers.");
+        return back()->with('success', "Approved {$result['approved_count']} peers as Only Green Peer. Skipped {$result['skipped_count']} non-eligible peers.");
     }
 
     private function membershipStatuses(): array
@@ -2095,9 +2097,9 @@ class UsersController extends Controller
 
     private function approvedMembershipStatus(): string
     {
-        // Database enum membership_status_enum must include only_unity_peer.
-        // Manual SQL: ALTER TYPE membership_status_enum ADD VALUE IF NOT EXISTS 'only_unity_peer';
-        return 'only_unity_peer';
+        // Database enum membership_status_enum includes 'Only Green Peer'.
+        // Manual SQL: ALTER TYPE membership_status_enum ADD VALUE IF NOT EXISTS 'Only Green Peer';
+        return 'Only Green Peer';
     }
 
     private function parseJoinedFilterDate(?string $value): ?Carbon

@@ -29,6 +29,7 @@ use App\Http\Controllers\Admin\MembershipPlanController;
 use App\Http\Controllers\Admin\PostReportsController;
 use App\Http\Controllers\Admin\PostModerationController;
 use App\Http\Controllers\Admin\VisitorRegistrationsController;
+use App\Http\Controllers\Admin\PendingRegistrationsController;
 use App\Http\Controllers\Admin\CircularController;
 use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\AdController;
@@ -235,6 +236,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::delete('/posts/{post}', [PostModerationController::class, 'destroy'])->name('posts.destroy');
         Route::post('/posts/{post}/deactivate', [PostModerationController::class, 'deactivate'])->name('posts.deactivate');
         Route::post('/posts/{post}/restore', [PostModerationController::class, 'restore'])->name('posts.restore');
+        Route::get('/pending-requests/pending-registrations', [PendingRegistrationsController::class, 'index'])->name('pending-registrations.index');
+        Route::post('/pending-requests/pending-registrations/{user}/approve', [PendingRegistrationsController::class, 'approve'])->name('pending-registrations.approve');
+        Route::post('/pending-requests/pending-registrations/{user}/reject', [PendingRegistrationsController::class, 'reject'])->name('pending-registrations.reject');
+
         Route::get('/visitor-registrations', [VisitorRegistrationsController::class, 'index'])->name('visitor-registrations.index');
         Route::post('/visitor-registrations/{id}/approve', [VisitorRegistrationsController::class, 'approve'])
             ->whereUuid('id')

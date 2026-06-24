@@ -79,7 +79,7 @@ class RegisterRequest extends FormRequest
 
             'profile_photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
 
-            'email' => ['required', 'email:rfc,dns', 'max:255', 'unique:users,email'],
+            'email' => ['required', 'email:rfc', 'max:255', 'unique:users,email'],
 
             // PHONE IS REQUIRED + UNIQUE TO AVOID DB UNIQUE VIOLATION
             'phone' => ['required', 'string', 'max:20', 'unique:users,phone'],

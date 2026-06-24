@@ -144,8 +144,8 @@
     <div class="text-center mb-2">
         <a href="{{ route($isIndustryDirector ? 'admin.industry-director.dashboard' : 'admin.users.index') }}" class="d-inline-block">
             <img
-                src="/api/v1/files/019bd9d7-7e13-71fc-8395-0e1dd20a268b"
-                alt="Peers Global Unity"
+                src="{{ asset('images/greenpreneur-logo.png') }}"
+                alt="Greenpreneur"
                 style="max-height:68px; width:auto;"
                 class="d-block mx-auto my-3"
                 loading="lazy"

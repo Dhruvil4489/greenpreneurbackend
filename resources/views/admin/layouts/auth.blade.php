@@ -7,13 +7,13 @@
     <title>@yield('title', 'Admin Login')</title>
     <style>
         :root {
-            --bg-gradient: radial-gradient(circle at 10% 20%, #1f2937 0%, #0b1220 25%, #0a0f1d 50%, #0b1224 75%, #0f172a 100%);
-            --card-bg: rgba(18, 24, 38, 0.9);
-            --border: rgba(255, 255, 255, 0.08);
-            --accent: #8b5cf6;
-            --accent-strong: #c084fc;
-            --text: #e5e7eb;
-            --muted: #9ca3af;
+            --bg-gradient: linear-gradient(135deg, #f8fafc 0%, #f0fdf4 50%, #dcfce7 100%);
+            --card-bg: #ffffff;
+            --border: rgba(16, 185, 129, 0.1);
+            --accent: #10b981;
+            --accent-strong: #059669;
+            --text: #334155;
+            --muted: #64748b;
         }
         * { box-sizing: border-box; }
         body {
@@ -22,34 +22,88 @@
             font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             background: var(--bg-gradient);
             color: var(--text);
+            position: relative;
+            overflow-x: hidden;
         }
-        .page-container { width: 100%; max-width: 1200px; margin: 0 auto; padding: 32px 20px 48px; }
+        .glow-shape-1 {
+            position: absolute;
+            top: -20%;
+            left: -10%;
+            width: 600px;
+            height: 600px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(16, 185, 129, 0.15) 0%, rgba(16, 185, 129, 0) 70%);
+            filter: blur(80px);
+            z-index: -1;
+            pointer-events: none;
+        }
+        .glow-shape-2 {
+            position: absolute;
+            bottom: -20%;
+            right: -10%;
+            width: 700px;
+            height: 700px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(132, 204, 22, 0.12) 0%, rgba(132, 204, 22, 0) 70%);
+            filter: blur(90px);
+            z-index: -1;
+            pointer-events: none;
+        }
+        .page-container { width: 100%; max-width: 1200px; margin: 0 auto; padding: 32px 20px 48px; position: relative; z-index: 2; }
         .auth-wrapper { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-        .card { width: 100%; max-width: 520px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 20px; padding: 32px; box-shadow: 0 25px 60px rgba(0, 0, 0, 0.45); backdrop-filter: blur(10px); }
+        .card { 
+            width: 100%; 
+            max-width: 480px; 
+            background: var(--card-bg); 
+            border: 1px solid var(--border); 
+            border-radius: 24px; 
+            padding: 40px; 
+            box-shadow: 0 20px 40px -15px rgba(16, 185, 129, 0.12), 0 15px 30px -10px rgba(0, 0, 0, 0.04);
+            backdrop-filter: blur(8px); 
+        }
         .card-header { margin-bottom: 20px; }
         .eyebrow { letter-spacing: 0.08em; text-transform: uppercase; font-size: 12px; color: var(--muted); margin: 0 0 8px; }
-        h1 { margin: 0; color: #f9fafb; font-size: 28px; font-weight: 700; letter-spacing: -0.02em; }
+        h1 { margin: 0; color: #0f172a; font-size: 28px; font-weight: 700; letter-spacing: -0.02em; }
         p { color: var(--muted); margin: 6px 0 0; line-height: 1.6; }
-        label { display: block; font-weight: 600; margin-bottom: 8px; color: #f3f4f6; letter-spacing: -0.01em; }
-        input { width: 100%; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--border); background: rgba(255, 255, 255, 0.04); color: #f3f4f6; font-size: 16px; transition: border-color 0.2s, box-shadow 0.2s; }
-        input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.25); }
+        label { display: block; font-weight: 600; margin-bottom: 8px; color: #334155; letter-spacing: -0.01em; }
+        input { 
+            width: 100%; 
+            padding: 14px 16px; 
+            border-radius: 12px; 
+            border: 1px solid #cbd5e1; 
+            background: #ffffff; 
+            color: #0f172a; 
+            font-size: 16px; 
+            transition: border-color 0.2s, box-shadow 0.2s; 
+        }
+        input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.15); }
         .input-row { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; }
         .btn { border: none; cursor: pointer; padding: 14px 18px; border-radius: 12px; font-weight: 700; font-size: 16px; transition: transform 0.08s ease, box-shadow 0.2s; }
         .btn:disabled { opacity: 0.65; cursor: not-allowed; transform: none; box-shadow: none; }
-        .btn.primary { background: linear-gradient(120deg, var(--accent), var(--accent-strong)); color: #0b0f1a; box-shadow: 0 14px 30px rgba(139, 92, 246, 0.35); }
-        .btn.secondary { background: rgba(255, 255, 255, 0.08); color: #f9fafb; border: 1px solid var(--border); }
+        .btn.primary { 
+            background: linear-gradient(135deg, var(--accent), var(--accent-strong)); 
+            color: #ffffff; 
+            box-shadow: 0 10px 20px -5px rgba(16, 185, 129, 0.3); 
+        }
+        .btn.secondary { 
+            background: #f1f5f9; 
+            color: #334155; 
+            border: 1px solid #e2e8f0; 
+        }
         .btn:not(:disabled):hover { transform: translateY(-1px); }
         .otp-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 12px; }
-        .otp-input { text-align: center; font-size: 22px; letter-spacing: 0.08em; }
+        .otp-input { text-align: center; font-size: 24px; letter-spacing: 0.08em; color: #0f172a; }
         .status { border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; font-weight: 600; display: none; }
         .status.show { display: block; }
-        .status.success { background: rgba(74, 222, 128, 0.12); border: 1px solid rgba(74, 222, 128, 0.4); color: #bbf7d0; }
-        .status.error { background: rgba(248, 113, 113, 0.12); border: 1px solid rgba(248, 113, 113, 0.4); color: #fecdd3; }
+        .status.success { background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); color: #065f46; }
+        .status.error { background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.25); color: #991b1b; }
         .muted { color: var(--muted); font-size: 14px; }
         @media (max-width: 640px) { .card { padding: 24px; } .input-row { grid-template-columns: 1fr; } .btn { width: 100%; } }
     </style>
 </head>
 <body>
+    <div class="glow-shape-1"></div>
+    <div class="glow-shape-2"></div>
     @yield('content')
 </body>
 </html>

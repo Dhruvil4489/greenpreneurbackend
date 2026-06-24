@@ -54,7 +54,7 @@
             <p>{{ $event->description }}</p>
         @endif
         <div class="details">
-            <div class="detail"><strong>Circle</strong>{{ $event->circle?->name ?? 'Peers Global Unity' }}</div>
+            <div class="detail"><strong>Circle</strong>{{ $event->circle?->name ?? 'Greenpreneur' }}</div>
             <div class="detail"><strong>Date & time</strong>{{ optional($occurrence->start_at ?? $event->start_at)->format('d M Y, h:i A') ?? 'To be announced' }}@if($occurrence->end_at) - {{ $occurrence->end_at->format('h:i A') }}@endif</div>
             <div class="detail"><strong>Location</strong>{{ $event->location_text ?: ($event->mode === 'online' ? 'Online event' : 'To be announced') }}</div>
             <div class="detail"><strong>Mode</strong>{{ ucfirst((string) ($event->mode ?: ($event->is_virtual ? 'online' : 'offline'))) }}</div>
@@ -195,7 +195,7 @@
             <div>
                 <label for="invited_by_type">Invited by *</label>
                 <select id="invited_by_type" name="invited_by_type">
-                    <option value="peers_global_team" @selected(old('invited_by_type', 'other') === 'peers_global_team')>Peers Global Team</option>
+                    <option value="peers_global_team" @selected(old('invited_by_type', 'other') === 'peers_global_team')>Greenpreneur Team</option>
                     <option value="circle_member_peer" @selected(old('invited_by_type', 'other') === 'circle_member_peer')>Circle member / Peer</option>
                     <option value="other" @selected(old('invited_by_type', 'other') === 'other')>Other</option>
                 </select>

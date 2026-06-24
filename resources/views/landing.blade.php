@@ -3,29 +3,55 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Peers Global Unity | Download the App</title>
+    <title>Greenpreneur | Download the App</title>
     <style>
         :root {
-            color-scheme: dark;
-            --bg-start: #0a0f1f;
-            --bg-end: #101833;
-            --card-bg: rgba(255, 255, 255, 0.08);
-            --card-border: rgba(255, 255, 255, 0.14);
-            --text-primary: #f5f7ff;
-            --text-secondary: #c6c9e5;
-            --accent: #6be4ff;
-            --accent-glow: rgba(107, 228, 255, 0.5);
-            --shadow: 0 24px 60px rgba(4, 8, 26, 0.45);
+            color-scheme: light;
+            --bg-start: #f8fafc;
+            --bg-end: #f0fdf4;
+            --card-bg: rgba(255, 255, 255, 0.85);
+            --card-border: rgba(16, 185, 129, 0.15);
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --accent: #10b981;
+            --accent-glow: rgba(16, 185, 129, 0.3);
+            --shadow: 0 20px 40px -15px rgba(16, 185, 129, 0.12), 0 15px 30px -10px rgba(0, 0, 0, 0.04);
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
         body {
             font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
-            background: radial-gradient(circle at top, #1a2247 0%, var(--bg-end) 45%, var(--bg-start) 100%);
+            background: radial-gradient(circle at top, #e8f5e9 0%, var(--bg-end) 60%, var(--bg-start) 100%);
             color: var(--text-primary);
             min-height: 100vh;
             overflow-x: hidden;
+            position: relative;
+        }
+
+        .glow-shape-1 {
+            position: absolute;
+            top: -10%;
+            left: 5%;
+            width: 450px;
+            height: 450px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(16, 185, 129, 0.15) 0%, rgba(16, 185, 129, 0) 70%);
+            filter: blur(80px);
+            z-index: 1;
+            pointer-events: none;
+        }
+        .glow-shape-2 {
+            position: absolute;
+            bottom: 5%;
+            right: 5%;
+            width: 500px;
+            height: 500px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(132, 204, 22, 0.12) 0%, rgba(132, 204, 22, 0) 70%);
+            filter: blur(90px);
+            z-index: 1;
+            pointer-events: none;
         }
 
         a { color: inherit; text-decoration: none; }
@@ -60,7 +86,7 @@
             font-size: 12px;
             letter-spacing: 0.08em;
             text-transform: uppercase;
-            background: rgba(107, 228, 255, 0.15);
+            background: rgba(16, 185, 129, 0.12);
             color: var(--accent);
             font-weight: 600;
         }
@@ -82,7 +108,7 @@
         .description {
             font-size: 1.05rem;
             line-height: 1.7;
-            color: rgba(243, 246, 255, 0.8);
+            color: var(--text-secondary);
             margin-bottom: 32px;
             max-width: 90%;
         }
@@ -329,25 +355,52 @@
         @keyframes slideDown { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         @keyframes fadeIn { to { opacity: 1; transform: translateY(0); } }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.02); } 100% { transform: scale(1); } }
+
+        .phone-image-container {
+            width: 100%;
+            max-width: 338px;
+            aspect-ratio: 9/16;
+            border-radius: 40px;
+            overflow: hidden;
+            box-shadow: 0 20px 40px -10px rgba(16, 185, 129, 0.25);
+            z-index: 10;
+            position: relative;
+            transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.5s ease;
+        }
+        .phone-image-container:hover {
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 30px 60px -15px rgba(16, 185, 129, 0.35);
+        }
+        .hero-mockup-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        @media (min-width: 900px) {
+            .phone-image-container { animation: float 6s ease-in-out infinite; }
+        }
     </style>
 </head>
 <body>
+    <div class="glow-shape-1"></div>
+    <div class="glow-shape-2"></div>
     <main class="page">
         <section class="hero-card">
             <div class="hero-grid">
                 <div>
-                    <span class="badge">DIRECT ACCESS FROM PEERSGLOBAL</span>
-                    <h1 class="headline">I’m officially Live &amp; Ready.</h1>
+                    <span class="badge">GREENPRENEUR PLATFORM</span>
+                    <h1 class="headline">Learn. Connect. Grow Green.</h1>
                     
-                    <p class="subheadline">The Ultimate Growth & Collaboration Platform for Entrepreneurs</p>
+                    <p class="subheadline">India's Green Learning, Networking and Sustainability Community</p>
                     
                     <p class="description">
-                        Hi! I’m Peers Global Unity. I’m now available on the App Store and Google Play. Download me to access your circles, referrals, events, and connections all in one trusted platform.
+                        Discover sustainable skills, connect with eco-conscious professionals, join green communities, participate in eco-circles, track your impact, and grow your profile in the Greenpreneur ecosystem.
                     </p>
 
                     <div class="cta-buttons">
                         <a class="store-button primary"
-                           href="https://play.google.com/store/apps/details?id=com.peers.peersunity&pcampaignid=web_share"
+                           href="https://play.google.com/store/apps/details?id=com.unity.greenpreneur"
                            target="_blank" rel="noopener noreferrer">
                             <span class="store-icon">
                                 <svg width="100%" height="100%" viewBox="0 0 24 24" fill="none">
@@ -363,7 +416,7 @@
                         </a>
 
                         <a class="store-button secondary"
-                           href="https://apps.apple.com/in/app/peers-global-unity/id6739198477"
+                           href="https://apps.apple.com/in/app/greenpreneur-unity/id6782311572"
                            target="_blank" rel="noopener noreferrer">
                             <span class="store-icon">
                                 <svg width="100%" height="100%" viewBox="0 0 24 24" fill="none">
@@ -380,60 +433,8 @@
                 </div>
 
                 <div class="phone-wrap">
-                    <div class="phone">
-                        <div class="phone-screen">
-                            <div class="dynamic-island">
-                                <div class="di-camera"></div>
-                            </div>
-                            
-                            <div class="screen-content">
-                                <div class="phone-header">
-                                    <div class="phone-app-icon">
-                                        <img src="{{ url('/api/v1/files/019be538-1251-705b-b26e-5460ee4ef526') }}" alt="Peers Logo">
-                                    </div>
-                                    <div class="phone-app-text">
-                                        <h3>Peers Global Unity</h3>
-                                        <p>Vyapaar Jagat</p>
-                                    </div>
-                                </div>
-
-                                <div class="mock-widget" style="animation-delay: 0.1s;">
-                                    <div class="stats-grid">
-                                        <div class="stat-box">
-                                            <span class="stat-num">1.2k+</span>
-                                            <span class="stat-label">Connections</span>
-                                        </div>
-                                        <div class="stat-box">
-                                            <span class="stat-num">85</span>
-                                            <span class="stat-label">Referrals</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="mock-widget" style="animation-delay: 0.2s;">
-                                    <span class="event-tag">LIVE NOW</span>
-                                    <div class="event-title">Global Entrepreneur Summit</div>
-                                    <div class="event-date">
-                                        <span>📍 Main Hall</span> • <span>👥 450 joined</span>
-                                    </div>
-                                    <button class="btn-join">Join Session</button>
-                                </div>
-
-                                <div class="mock-widget" style="animation-delay: 0.3s;">
-                                    <div class="user-row">
-                                        <div class="user-avatar"></div>
-                                        <div class="user-info">
-                                            <div class="user-name">Sarah Jenkins</div>
-                                            <div class="user-action">Sent you a referral request</div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="install-fab">
-                                    Get the App
-                                </div>
-                            </div>
-                        </div>
+                    <div class="phone-image-container">
+                        <img class="hero-mockup-img" src="{{ asset('images/greenpreneur-mockup.png') }}" alt="Greenpreneur Mobile Mockup">
                     </div>
                 </div>
 
@@ -441,7 +442,7 @@
         </section>
 
         <footer>
-            <div>© 2026 Peers Global Unity</div>
+            <div>© 2026 Greenpreneur</div>
             <div>You are viewing the official download page.</div>
         </footer>
     </main>

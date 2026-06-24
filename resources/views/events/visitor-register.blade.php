@@ -178,7 +178,7 @@
                 <label for="invited_by_type">Invited by</label>
                 <select id="invited_by_type" name="invited_by_type">
                     <option value="">Select</option>
-                    <option value="peers_global_team" @selected(old('invited_by_type') === 'peers_global_team')>Peers Global Team</option>
+                    <option value="peers_global_team" @selected(old('invited_by_type') === 'peers_global_team')>Greenpreneur Team</option>
                     <option value="circle_member_peer" @selected(old('invited_by_type') === 'circle_member_peer')>Circle member / Peer</option>
                     <option value="other" @selected(old('invited_by_type') === 'other')>Other</option>
                 </select>

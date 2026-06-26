@@ -157,6 +157,11 @@ class User extends Authenticatable
         'welcome_membership_email_status',
         'welcome_membership_email_error',
         'welcome_membership_email_plan_code',
+        'website',
+        'sustainability_contribution',
+        'sustainability_areas',
+        'greenpreneur_goals',
+        'community_directory_listing',
     ];
 
     protected $hidden = [
@@ -206,6 +211,8 @@ class User extends Authenticatable
         'is_sponsored_member' => 'boolean',
         'life_impacted_count' => 'integer',
         'is_online' => 'boolean',
+        'sustainability_areas' => 'array',
+        'greenpreneur_goals' => 'array',
     ];
 
     public function getAuthPassword()

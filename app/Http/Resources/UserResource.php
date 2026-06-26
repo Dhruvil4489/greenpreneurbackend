@@ -137,6 +137,11 @@ class UserResource extends JsonResource
             'last_login_at'       => $this->last_login_at,
             'created_at'          => $this->created_at,
             'updated_at'          => $this->updated_at,
+            'website'                     => $this->website,
+            'sustainability_contribution' => $this->sustainability_contribution,
+            'sustainability_areas'        => $this->sustainability_areas ?? [],
+            'greenpreneur_goals'          => $this->greenpreneur_goals ?? [],
+            'community_directory_listing' => $this->community_directory_listing,
             'profile_match'       => $this->when(
                 $request->attributes->get('profile_match_enabled', false),
                 fn () => $this->resolveProfileMatch($request)

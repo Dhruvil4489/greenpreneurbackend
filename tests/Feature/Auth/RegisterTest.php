@@ -103,6 +103,77 @@ class RegisterTest extends TestCase
         $duplicateEmailResponse->assertStatus(422)->assertJsonValidationErrors(['email']);
     }
 
+    public function test_registration_with_new_fields_fully_filled(): void
+    {
+        $payload = [
+            'first_name' => 'Green',
+            'last_name' => 'Preneur',
+            'email' => 'greenpreneur-full@example.com',
+            'phone' => '9999999999',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+            'website' => 'https://sustainability.com',
+            'sustainability_contribution' => 'Our business uses 100% solar power.',
+            'sustainability_areas' => ['Renewable Energy', 'Waste Management'],
+            'greenpreneur_goals' => ['Business Growth', 'Partnerships'],
+            'interests' => ['Speaking Opportunities', 'Panel Discussions'],
+            'community_directory_listing' => 'Yes',
+        ];
+
+        $response = $this->postJson('/api/v1/auth/register', $payload);
+
+        $response->assertStatus(201)
+            ->assertJsonPath('data.user.website', 'https://sustainability.com')
+            ->assertJsonPath('data.user.sustainability_contribution', 'Our business uses 100% solar power.')
+            ->assertJsonPath('data.user.sustainability_areas', ['Renewable Energy', 'Waste Management'])
+            ->assertJsonPath('data.user.greenpreneur_goals', ['Business Growth', 'Partnerships'])
+            ->assertJsonPath('data.user.interests', ['Speaking Opportunities', 'Panel Discussions'])
+            ->assertJsonPath('data.user.community_directory_listing', 'Yes');
+
+        $this->assertDatabaseHas('users', [
+            'email' => 'greenpreneur-full@example.com',
+            'website' => 'https://sustainability.com',
+            'sustainability_contribution' => 'Our business uses 100% solar power.',
+            'community_directory_listing' => 'Yes',
+        ]);
+
+        $user = User::where('email', 'greenpreneur-full@example.com')->firstOrFail();
+        $this->assertEquals(['Renewable Energy', 'Waste Management'], $user->sustainability_areas);
+        $this->assertEquals(['Business Growth', 'Partnerships'], $user->greenpreneur_goals);
+        $this->assertEquals(['Speaking Opportunities', 'Panel Discussions'], $user->interests);
+    }
+
+    public function test_registration_with_new_fields_partially_filled(): void
+    {
+        $payload = [
+            'first_name' => 'Green',
+            'last_name' => 'Preneur',
+            'email' => 'greenpreneur-partial@example.com',
+            'phone' => '8888888888',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+            'website' => 'https://solar.com',
+            // Omitted: sustainability_contribution, sustainability_areas, greenpreneur_goals, interests, community_directory_listing
+        ];
+
+        $response = $this->postJson('/api/v1/auth/register', $payload);
+
+        $response->assertStatus(201)
+            ->assertJsonPath('data.user.website', 'https://solar.com')
+            ->assertJsonPath('data.user.sustainability_contribution', null)
+            ->assertJsonPath('data.user.sustainability_areas', [])
+            ->assertJsonPath('data.user.greenpreneur_goals', [])
+            ->assertJsonPath('data.user.interests', [])
+            ->assertJsonPath('data.user.community_directory_listing', 'No'); // Should default to No
+
+        $this->assertDatabaseHas('users', [
+            'email' => 'greenpreneur-partial@example.com',
+            'website' => 'https://solar.com',
+            'sustainability_contribution' => null,
+            'community_directory_listing' => 'No',
+        ]);
+    }
+
     private function setUpInMemoryDatabase(): void
     {
         Schema::dropIfExists('personal_access_tokens');
@@ -130,6 +201,12 @@ class RegisterTest extends TestCase
             $table->timestamp('membership_ends_at')->nullable();
             $table->bigInteger('coins_balance')->default(0);
             $table->string('public_profile_slug', 80)->nullable()->unique();
+            $table->string('website', 255)->nullable();
+            $table->text('sustainability_contribution')->nullable();
+            $table->json('sustainability_areas')->nullable();
+            $table->json('greenpreneur_goals')->nullable();
+            $table->json('interests')->nullable();
+            $table->string('community_directory_listing', 10)->nullable();
             $table->rememberToken();
             $table->timestamps();
             $table->softDeletes();

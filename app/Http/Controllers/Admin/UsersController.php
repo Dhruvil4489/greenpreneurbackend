@@ -123,6 +123,9 @@ class UsersController extends Controller
             'level_2_category_id' => $request->input('level_2_category_id', $request->input('level2_category_id')),
             'level_3_category_id' => $request->input('level_3_category_id', $request->input('level3_category_id')),
             'level_4_category_id' => $request->input('level_4_category_id', $request->input('level4_category_id')),
+            'interests' => $request->input('interests', []),
+            'sustainability_areas' => $request->input('sustainability_areas', []),
+            'greenpreneur_goals' => $request->input('greenpreneur_goals', []),
         ]);
         $request->merge($this->normalizedAdminCircleDateInputs($request));
 
@@ -132,8 +135,8 @@ class UsersController extends Controller
             'display_name' => ['nullable', 'string', 'max:150'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'phone' => ['nullable', 'string', 'max:30'],
-            'designation' => ['nullable', 'string', 'max:100'],
-            'company_name' => ['nullable', 'string', 'max:150'],
+            'designation' => ['required', 'string', 'max:255'],
+            'company_name' => ['required', 'string', 'max:255'],
             'business_type' => ['nullable', 'string', 'max:100'],
             'turnover_range' => ['nullable', 'string', 'max:100'],
             'gender' => ['nullable', 'string', 'max:20'],
@@ -156,7 +159,7 @@ class UsersController extends Controller
             'coins_balance' => ['nullable', 'integer', 'min:0'],
             'is_sponsored_member' => ['boolean'],
             'city_id' => ['nullable', 'exists:cities,id'],
-            'city' => ['nullable', 'string', 'max:150'],
+            'city' => ['required', 'string', 'max:255'],
             'profile_photo_file_id' => ['nullable', 'uuid'],
             'cover_photo_file_id' => ['nullable', 'uuid'],
             'industry_tags' => ['nullable', 'string', 'max:10000'],
@@ -166,13 +169,18 @@ class UsersController extends Controller
             'leadership_roles' => ['nullable', 'string', 'max:10000'],
             'special_recognitions' => ['nullable', 'string', 'max:10000'],
             'skills' => ['nullable', 'string', 'max:10000'],
-            'interests' => ['nullable', 'string', 'max:10000'],
+            'interests' => ['nullable', 'array'],
             'social_links' => ['nullable', 'string', 'max:10000'],
             'circle_id' => ['nullable', 'uuid', 'exists:circles,id'],
             'circle_city' => ['nullable', 'string', 'max:150'],
             'circle_country' => ['nullable', 'string', 'max:150'],
             'circle_meeting_mode' => ['nullable', 'string', 'max:50'],
             'circle_meeting_frequency' => ['nullable', 'string', 'max:50'],
+            'website' => ['nullable', 'url', 'max:255'],
+            'sustainability_contribution' => ['nullable', 'string'],
+            'sustainability_areas' => ['nullable', 'array'],
+            'greenpreneur_goals' => ['nullable', 'array'],
+            'community_directory_listing' => ['required', 'in:Yes,No'],
         ]);
 
         $csvFields = [
@@ -183,12 +191,15 @@ class UsersController extends Controller
             'leadership_roles',
             'special_recognitions',
             'skills',
-            'interests',
         ];
 
         foreach ($csvFields as $field) {
             $validated[$field] = $this->csvToArray($request->input($field, ''));
         }
+        
+        $validated['interests'] = $request->input('interests', []);
+        $validated['sustainability_areas'] = $request->input('sustainability_areas', []);
+        $validated['greenpreneur_goals'] = $request->input('greenpreneur_goals', []);
 
         $validated['social_links'] = $this->parseSocialLinks($request->input('social_links'));
         $validated = $this->syncMembershipExpiryInput($validated, $request);
@@ -436,6 +447,9 @@ class UsersController extends Controller
             'level_2_category_id' => $request->input('level_2_category_id', $request->input('level2_category_id')),
             'level_3_category_id' => $request->input('level_3_category_id', $request->input('level3_category_id')),
             'level_4_category_id' => $request->input('level_4_category_id', $request->input('level4_category_id')),
+            'interests' => $request->input('interests', []),
+            'sustainability_areas' => $request->input('sustainability_areas', []),
+            'greenpreneur_goals' => $request->input('greenpreneur_goals', []),
         ]);
         $adminRoleKeys = ['global_admin', 'industry_director', 'ded', 'circle_leader'];
         $adminRoles = Role::query()
@@ -450,8 +464,8 @@ class UsersController extends Controller
             'display_name' => ['nullable', 'string', 'max:150'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email,' . $user->id],
             'phone' => ['nullable', 'string', 'max:30'],
-            'designation' => ['nullable', 'string', 'max:100'],
-            'company_name' => ['nullable', 'string', 'max:150'],
+            'designation' => ['required', 'string', 'max:255'],
+            'company_name' => ['required', 'string', 'max:255'],
             'business_type' => ['nullable', 'string', 'max:100'],
             'turnover_range' => ['nullable', 'string', 'max:100'],
             'gender' => ['nullable', 'string', 'max:20'],
@@ -487,7 +501,7 @@ class UsersController extends Controller
             'influencer_stars' => ['nullable', 'integer', 'min:0'],
             'is_sponsored_member' => ['boolean'],
             'city_id' => ['nullable', 'exists:cities,id'],
-            'city' => ['nullable', 'string', 'max:150'],
+            'city' => ['required', 'string', 'max:255'],
             'introduced_by' => ['nullable', 'exists:users,id'],
             'members_introduced_count' => ['nullable', 'integer', 'min:0'],
             'profile_photo_file_id' => ['nullable', 'uuid'],
@@ -499,7 +513,7 @@ class UsersController extends Controller
             'leadership_roles' => ['nullable', 'string', 'max:10000'],
             'special_recognitions' => ['nullable', 'string', 'max:10000'],
             'skills' => ['nullable', 'string', 'max:10000'],
-            'interests' => ['nullable', 'string', 'max:10000'],
+            'interests' => ['nullable', 'array'],
             'social_links' => ['nullable', 'string', 'max:10000'],
             'circle_id' => ['nullable', 'uuid', 'exists:circles,id'],
             'circle_city' => ['nullable', 'string', 'max:150'],
@@ -513,6 +527,11 @@ class UsersController extends Controller
             'ded_district_id' => ['nullable', 'uuid'],
             'ded_district_name' => ['nullable', 'string', 'max:150'],
             'industry_id' => ['nullable', 'uuid', 'exists:industries,id'],
+            'website' => ['nullable', 'url', 'max:255'],
+            'sustainability_contribution' => ['nullable', 'string'],
+            'sustainability_areas' => ['nullable', 'array'],
+            'greenpreneur_goals' => ['nullable', 'array'],
+            'community_directory_listing' => ['required', 'in:Yes,No'],
         ], [
             'role_ids.max' => 'You can not assign multiple roles.',
         ]);
@@ -613,12 +632,15 @@ class UsersController extends Controller
             'leadership_roles',
             'special_recognitions',
             'skills',
-            'interests',
         ];
 
         foreach ($csvFields as $field) {
             $validated[$field] = $this->csvToArray($request->input($field, ''));
         }
+
+        $validated['interests'] = $request->input('interests', []);
+        $validated['sustainability_areas'] = $request->input('sustainability_areas', []);
+        $validated['greenpreneur_goals'] = $request->input('greenpreneur_goals', []);
 
         $validated['social_links'] = $this->parseSocialLinks($request->input('social_links'));
         $validated = $this->syncMembershipExpiryInput($validated, $request, $user);

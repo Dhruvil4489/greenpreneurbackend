@@ -106,6 +106,9 @@
                                 @endif
                             </td>
                             <td class="text-end">
+                                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#regDetailsModal-{{ $registration->id }}">
+                                    <i class="bi bi-eye me-1"></i>Details
+                                </button>
                                 @if ($registration->status === 'inactive')
                                     <form method="POST" action="{{ route('admin.pending-registrations.approve', $registration->id) }}" class="d-inline">
                                         @csrf
@@ -136,6 +139,121 @@
                                 @else
                                     <span class="text-muted">—</span>
                                 @endif
+
+                                <!-- Registration Details Modal -->
+                                <div class="modal fade" id="regDetailsModal-{{ $registration->id }}" tabindex="-1" aria-labelledby="regDetailsModalLabel-{{ $registration->id }}" aria-hidden="true">
+                                    <div class="modal-dialog modal-lg modal-dialog-centered">
+                                        <div class="modal-content">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title" id="regDetailsModalLabel-{{ $registration->id }}">Registration Details: {{ $fullName }}</h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                            </div>
+                                            <div class="modal-body text-start">
+                                                <div class="row g-3">
+                                                    <!-- Basic Information -->
+                                                    <div class="col-md-6">
+                                                        <strong>First Name:</strong> <span class="text-muted">{{ $registration->first_name }}</span>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <strong>Last Name:</strong> <span class="text-muted">{{ $registration->last_name ?? '—' }}</span>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <strong>Email:</strong> <span class="text-muted">{{ $registration->email }}</span>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <strong>Mobile:</strong> <span class="text-muted">{{ $registration->phone ?? '—' }}</span>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <strong>Company Name:</strong> <span class="text-muted">{{ $registration->company_name ?? '—' }}</span>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <strong>Designation:</strong> <span class="text-muted">{{ $registration->designation ?? '—' }}</span>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <strong>City:</strong> <span class="text-muted">{{ $city }}</span>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <strong>Website:</strong> 
+                                                        @if($registration->website)
+                                                            <a href="{{ $registration->website }}" target="_blank">{{ $registration->website }}</a>
+                                                        @else
+                                                            <span class="text-muted">—</span>
+                                                        @endif
+                                                    </div>
+                                                    <div class="col-md-12">
+                                                        <strong>List in Community Directory?</strong> <span class="text-muted">{{ $registration->community_directory_listing ?? 'No' }}</span>
+                                                    </div>
+
+                                                    <div class="col-12">
+                                                        <hr class="my-2">
+                                                    </div>
+
+                                                    <!-- Sustainability contribution & areas -->
+                                                    <div class="col-12">
+                                                        <strong>How does your business contribute to sustainability?</strong>
+                                                        <div class="p-2 bg-light border rounded mt-1 text-muted" style="white-space: pre-wrap;">{{ $registration->sustainability_contribution ?: 'No contribution specified.' }}</div>
+                                                    </div>
+
+                                                    <div class="col-12">
+                                                        <strong>Which sustainability areas do you focus on?</strong>
+                                                        <div class="mt-1">
+                                                            @if(is_array($registration->sustainability_areas) && count($registration->sustainability_areas) > 0)
+                                                                @foreach($registration->sustainability_areas as $area)
+                                                                    <span class="badge bg-success me-1 mb-1">{{ $area }}</span>
+                                                                @endforeach
+                                                            @else
+                                                                <span class="text-muted">None selected</span>
+                                                            @endif
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="col-12">
+                                                        <strong>What are you looking for through Greenpreneur?</strong>
+                                                        <div class="mt-1">
+                                                            @if(is_array($registration->greenpreneur_goals) && count($registration->greenpreneur_goals) > 0)
+                                                                @foreach($registration->greenpreneur_goals as $goal)
+                                                                    <span class="badge bg-primary me-1 mb-1">{{ $goal }}</span>
+                                                                @endforeach
+                                                            @else
+                                                                <span class="text-muted">None selected</span>
+                                                            @endif
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="col-12">
+                                                        <strong>Are you interested in:</strong>
+                                                        <div class="mt-1">
+                                                            @if(is_array($registration->interests) && count($registration->interests) > 0)
+                                                                @foreach($registration->interests as $interest)
+                                                                    <span class="badge bg-info text-dark me-1 mb-1">{{ $interest }}</span>
+                                                                @endforeach
+                                                            @else
+                                                                <span class="text-muted">None selected</span>
+                                                            @endif
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer">
+                                                @if ($registration->status === 'inactive')
+                                                    <form method="POST" action="{{ route('admin.pending-registrations.approve', $registration->id) }}" class="d-inline">
+                                                        @csrf
+                                                        <button type="submit" class="btn btn-success" onclick="return confirm('Are you sure you want to approve this registration request?')">
+                                                            Approve
+                                                        </button>
+                                                    </form>
+                                                    <form method="POST" action="{{ route('admin.pending-registrations.reject', $registration->id) }}" class="d-inline">
+                                                        @csrf
+                                                        <button type="submit" class="btn btn-outline-danger" onclick="return confirm('Are you sure you want to reject this registration request?')">
+                                                            Reject
+                                                        </button>
+                                                    </form>
+                                                @endif
+                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </td>
                         </tr>
                     @empty

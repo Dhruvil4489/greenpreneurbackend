@@ -14,6 +14,7 @@ use App\Console\Commands\TestZohoConvertInvoice;
 use App\Console\Commands\TestZohoCustomerPaymentWebhook;
 use App\Console\Commands\TestZohoPaidWebhook;
 use App\Console\Commands\SendAppUpdateReminderNotifications;
+use App\Console\Commands\SendBrandPartnerOfferExpiryNotifications;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 
@@ -32,6 +33,7 @@ class Kernel extends ConsoleKernel
         RetryZohoWebhooks::class,
         RetryIgnoredZohoWebhooks::class,
         TestZohoPaidWebhook::class,
+        SendBrandPartnerOfferExpiryNotifications::class,
     ];
 
     protected function schedule(Schedule $schedule): void
@@ -41,5 +43,6 @@ class Kernel extends ConsoleKernel
         $schedule->command('users:expire-trial')->hourly();
         $schedule->command('connections:send-pending-reminders')->dailyAt('09:00');
         $schedule->command('members:mark-offline-stale')->everyMinute();
+        $schedule->command('PGU:brand-partner-expiry-alerts')->dailyAt('08:00');
     }
 }

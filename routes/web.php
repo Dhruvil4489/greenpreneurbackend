@@ -46,6 +46,10 @@ use App\Http\Controllers\Admin\EventScanCredentialController;
 use App\Http\Controllers\Admin\ActivityCreativeController;
 use App\Http\Controllers\Admin\IndustryDirector\IndustryDirectorDashboardController;
 use App\Http\Controllers\PublicEventRegistrationFormController;
+use App\Http\Controllers\Admin\BrandPartnerController;
+use App\Http\Controllers\Admin\BrandPartnerCategoryController;
+use App\Http\Controllers\Admin\BrandPartnerAnalyticsController;
+use App\Http\Controllers\Admin\BrandPartnerSettingsController;
 
 Route::get('/', function () {
     return view('landing');
@@ -321,5 +325,51 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/execution/communications/broadcast', [AdminExecutionController::class, 'sendBroadcast'])->name('execution.broadcast.send');
         Route::get('/execution/meetings', [AdminExecutionController::class, 'meetings'])->name('execution.meetings');
         Route::get('/execution/reports', [AdminExecutionController::class, 'reports'])->name('execution.reports');
+
+        // Brand Partners Module
+        Route::middleware('admin.role:global_admin,marketing_team,analytics_team,content_team,read_only')->group(function () {
+            Route::get('/brand-partners/dashboard', [BrandPartnerAnalyticsController::class, 'index'])->name('brand-partners.dashboard');
+            Route::get('/brand-partners/analytics', [BrandPartnerAnalyticsController::class, 'detailedReport'])->name('brand-partners.analytics');
+            Route::get('/brand-partners/offers', [BrandPartnerController::class, 'offers'])->name('brand-partners.offers');
+            Route::get('/brand-partners/settings', [BrandPartnerSettingsController::class, 'index'])->name('brand-partners.settings');
+            Route::get('/brand-partners', [BrandPartnerController::class, 'index'])->name('brand-partners.index');
+        });
+
+        Route::middleware('admin.role:global_admin,marketing_team,content_team')->group(function () {
+            Route::get('/brand-partners/create', [BrandPartnerController::class, 'create'])->name('brand-partners.create');
+            Route::post('/brand-partners', [BrandPartnerController::class, 'store'])->name('brand-partners.store');
+            Route::get('/brand-partners/{brand_partner}/edit', [BrandPartnerController::class, 'edit'])->name('brand-partners.edit');
+            Route::put('/brand-partners/{brand_partner}', [BrandPartnerController::class, 'update'])->name('brand-partners.update');
+            Route::post('/brand-partners/{brand_partner}/duplicate', [BrandPartnerController::class, 'duplicate'])->name('brand-partners.duplicate');
+            Route::patch('/brand-partners/{brand_partner}/status', [BrandPartnerController::class, 'toggleStatus'])->name('brand-partners.toggle-status');
+            Route::patch('/brand-partners/{brand_partner}/featured', [BrandPartnerController::class, 'toggleFeatured'])->name('brand-partners.toggle-featured');
+            Route::patch('/brand-partners/{brand_partner}/sponsored', [BrandPartnerController::class, 'toggleSponsored'])->name('brand-partners.toggle-sponsored');
+            Route::post('/brand-partners/reorder', [BrandPartnerController::class, 'reorderPriority'])->name('brand-partners.reorder');
+            Route::post('/brand-partners/{brand_partner}/priority-up', [BrandPartnerController::class, 'movePriorityUp'])->name('brand-partners.priority-up');
+            Route::post('/brand-partners/{brand_partner}/priority-down', [BrandPartnerController::class, 'movePriorityDown'])->name('brand-partners.priority-down');
+            Route::post('/brand-partners/{brand_partner}/send-notification', [BrandPartnerController::class, 'sendManualNotification'])->name('brand-partners.send-notification');
+        });
+
+        Route::middleware('admin.role:global_admin')->group(function () {
+            Route::delete('/brand-partners/{brand_partner}', [BrandPartnerController::class, 'destroy'])->name('brand-partners.destroy');
+            Route::post('/brand-partners/settings', [BrandPartnerSettingsController::class, 'update'])->name('brand-partners.settings.update');
+        });
+
+        Route::middleware('admin.role:global_admin,content_team')->group(function () {
+            Route::get('/brand-partners/categories', [BrandPartnerCategoryController::class, 'index'])->name('brand-partners.categories.index');
+            Route::post('/brand-partners/categories', [BrandPartnerCategoryController::class, 'store'])->name('brand-partners.categories.store');
+            Route::put('/brand-partners/categories/{brand_partner_category}', [BrandPartnerCategoryController::class, 'update'])->name('brand-partners.categories.update');
+            Route::delete('/brand-partners/categories/{brand_partner_category}', [BrandPartnerCategoryController::class, 'destroy'])->name('brand-partners.categories.destroy');
+            Route::post('/brand-partners/categories/reorder', [BrandPartnerCategoryController::class, 'reorder'])->name('brand-partners.categories.reorder');
+        });
+
+        Route::middleware('admin.role:global_admin,analytics_team')->group(function () {
+            Route::get('/brand-partners/export', [BrandPartnerController::class, 'export'])->name('brand-partners.export');
+        });
+
+        // Wildcard route defined at the bottom to avoid intercepting concrete paths
+        Route::middleware('admin.role:global_admin,marketing_team,analytics_team,content_team,read_only')->group(function () {
+            Route::get('/brand-partners/{brand_partner}', [BrandPartnerController::class, 'show'])->name('brand-partners.show');
+        });
     });
 });

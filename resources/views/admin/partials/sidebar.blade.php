@@ -140,6 +140,17 @@
     $navItems = array_values(array_filter($navItems, fn ($item) => ($item['label'] ?? null) !== 'Events Management'));
     $campaignsMenu = $isIndustryDirector ? [] : $campaignsMenu;
     $eventsManagementMenu = $isIndustryDirector ? [] : $eventsManagementMenu;
+    
+    $brandPartnersActive = request()->routeIs('admin.brand-partners.*');
+    $brandPartnersMenu = [
+        ['label' => 'Dashboard', 'route' => 'admin.brand-partners.dashboard'],
+        ['label' => 'All Partners', 'route' => 'admin.brand-partners.index'],
+        ['label' => 'Categories', 'route' => 'admin.brand-partners.categories.index'],
+        ['label' => 'Offers', 'route' => 'admin.brand-partners.offers'],
+        ['label' => 'Analytics', 'route' => 'admin.brand-partners.analytics'],
+        ['label' => 'Settings', 'route' => 'admin.brand-partners.settings'],
+    ];
+    $hasBrandPartnersRole = $adminUser?->roles?->pluck('key')->intersect(['global_admin', 'marketing_team', 'analytics_team', 'content_team', 'read_only'])->isNotEmpty() ?? false;
 @endphp
 
 <aside class="admin-sidebar d-flex flex-column">
@@ -243,6 +254,28 @@
                                 <li class="nav-item">
                                     <a class="nav-link {{ request()->routeIs($eventItem['route']) ? 'active' : '' }}" href="{{ route($eventItem['route']) }}">{{ $eventItem['label'] }}</a>
                                 </li>
+                            @endforeach
+                        </ul>
+                    </div>
+                </li>
+            @endif
+
+            @if ($hasBrandPartnersRole)
+                <li class="nav-item menu-parent {{ $brandPartnersActive ? 'open' : '' }}">
+                    <a class="nav-link d-flex justify-content-between align-items-center {{ $brandPartnersActive ? 'active' : '' }}" data-bs-toggle="collapse" href="#brandPartnersSubmenu" role="button" aria-expanded="{{ $brandPartnersActive ? 'true' : 'false' }}" aria-controls="brandPartnersSubmenu">
+                        <span><i class="bi bi-briefcase me-2"></i>Brand Partners</span>
+                        <i class="bi bi-chevron-right menu-arrow"></i>
+                    </a>
+                    <div class="collapse {{ $brandPartnersActive ? 'show' : '' }}" id="brandPartnersSubmenu">
+                        <ul class="nav flex-column ms-3">
+                            @foreach ($brandPartnersMenu as $item)
+                                @if (Route::has($item['route']))
+                                    <li class="nav-item">
+                                        <a class="nav-link {{ request()->routeIs($item['route']) ? 'active' : '' }}" href="{{ route($item['route']) }}">
+                                            {{ $item['label'] }}
+                                        </a>
+                                    </li>
+                                @endif
                             @endforeach
                         </ul>
                     </div>
